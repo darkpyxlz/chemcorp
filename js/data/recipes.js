@@ -14,13 +14,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
 CC.RECIPES = [
   // ───────────── Tier 1 ─────────────
   {
-    id: 'neut', name: 'Neutralisation', cls: 'Acid–base', tech: 't_basics', tier: 1,
-    reagents: { hcl: 1, naoh: 1 }, products: { nacl: 1 },
-    solvents: ['s_water', 'none'], temp: [15, 40], exo: 3, time: 4, yield: 0.98,
-    hint: 'Mix a strong acid with a strong base in water at room temperature. It is exothermic — keep it below 40 °C.',
-    learn: 'H⁺ + OH⁻ → H₂O releases about 57 kJ/mol. Na⁺ and Cl⁻ are spectator ions that remain as salt.',
-  },
-  {
     id: 'sapon', name: 'Saponification', cls: 'Ester hydrolysis', tech: 't_sapon', tier: 1,
     reagents: { veg_oil: 1, naoh: 3 }, products: { soap: 3, glycerol: 1 },
     solvents: ['s_water', 's_etoh'], temp: [60, 100], exo: 0, time: 8, yield: 0.92,
@@ -28,7 +21,7 @@ CC.RECIPES = [
     learn: 'Base hydrolysis is irreversible: the carboxylate anion can no longer be attacked by an alcohol. Glycerol is a valuable by-product.',
   },
   {
-    id: 'etoac', name: 'Fischer esterification', cls: 'Esterification', tech: 't_fischer', tier: 1,
+    id: 'etoac', name: 'Fischer esterification', cls: 'Esterification', tech: 't_basics', tier: 1,
     reagents: { acoh: 1, etoh: 1 }, products: { etoac: 1 },
     solvents: ['none'], solventFx: { s_water: [0.2, 'Adding water pushes the equilibrium backwards (Le Chatelier).'], s_etoh: [0.95, 'Excess ethanol works, but it is wasted as solvent.'] },
     additive: { id: 'a_h2so4', amt: 0.05, why: 'Fischer esterification needs a strong acid catalyst to activate the carbonyl.' },
@@ -75,7 +68,22 @@ CC.RECIPES = [
     hint: 'SN2: turn a primary alcohol into an alkyl bromide using a bromide salt plus a full equivalent of sulfuric acid (makes HBr in situ). Reflux in water, 90–110 °C.',
     learn: 'H₂SO₄ protonates the –OH so it leaves as H₂O, a great leaving group; Br⁻ then attacks from the back side.',
   },
+  {
+    id: 'acetanilide', name: 'Acetanilide synthesis', cls: 'N-Acylation', tech: 't_acyl', tier: 2,
+    reagents: { aniline: 1, ac2o: 1 }, products: { acetanilide: 1, acoh: 1 },
+    solvents: ['s_water', 'none'], temp: [20, 50], exo: 2, time: 8, yield: 0.9,
+    hint: 'Acylate an aromatic amine with acetic anhydride. Amines are good nucleophiles — no catalyst needed. Water or neat, 20–50 °C.',
+    learn: 'Acetanilide (Antifebrin, 1886) was one of the first synthetic painkillers; the body turns it into paracetamol.',
+  },
   // ───────────── Tier 3 ─────────────
+  {
+    id: 'cyclohexanone', name: 'Bleach oxidation', cls: 'Oxidation', tech: 't_reduct', tier: 3,
+    reagents: { cyclohexanol: 1, naocl: 1 }, products: { cyclohexanone: 1 },
+    solvents: ['s_hoac'], solventFx: { s_water: [0.4, 'Without acetic acid there is little HOCl, the real oxidant.'] },
+    temp: [30, 45], exo: 3, time: 10, yield: 0.85,
+    hint: 'Oxidise a secondary alcohol to a ketone with household bleach in glacial acetic acid (makes HOCl). Exothermic — hold 30–45 °C.',
+    learn: 'Secondary alcohols oxidise to ketones; primary ones go to aldehydes and then acids. Bleach is a greener oxidant than chromium(VI).',
+  },
   {
     id: 'nerolin', name: 'Williamson ether synthesis', cls: 'SN2', tech: 't_subst', tier: 3,
     reagents: { naphthol: 1, bubr: 1, naoh: 1 }, products: { nerolin: 1 },

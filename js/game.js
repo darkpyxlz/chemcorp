@@ -72,8 +72,8 @@ var CC = (globalThis.CC = globalThis.CC || {});
       money: 25,
       rp: 0,
       patents: 0,
-      inv: { hcl: 5, naoh: 5 },
-      owned: { s_water: true },
+      inv: { acoh: 4, etoh: 4 },
+      owned: { s_water: true, a_h2so4: true },
       tech: { t_basics: true },
       up: {},
       recipes: {},
@@ -82,8 +82,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       autoBuy: true,
       demand: {},
       courses: {},
-      pop: null,
-      popAt: 0,
+      school: null,
       contracts: [],
       nextContractAt: Date.now() + 45000,
       contractSeq: 0,
@@ -459,36 +458,11 @@ var CC = (globalThis.CC = globalThis.CC || {});
     return { right, total: c.quiz.length, score, pass, rp };
   };
 
-  // Pop quiz: a random question from any passed course, every 45 s.
-  const POP_COOLDOWN = 45000;
-  G.popReady = () => Date.now() >= S.popAt && Object.values(S.courses).some((c) => c.passed);
-  G.popQuestion = function () {
-    if (S.pop) return S.pop;
-    const pool = [];
-    for (const c of CC.COURSES) if (G.coursePassed(c.id)) c.quiz.forEach((_, i) => pool.push([c.id, i]));
-    if (!pool.length) return null;
-    const [cid, qi] = CC.pick(pool);
-    S.pop = { cid, qi, order: shuffle(CC.COURSE[cid].quiz[qi].o.map((_, i) => i)) };
-    return S.pop;
-  };
-  G.answerPop = function (choice) {
-    const p = S.pop;
-    if (!p) return null;
-    const c = CC.COURSE[p.cid];
-    const q = c.quiz[p.qi];
-    const ok = choice === q.a;
-    const tier = 1 + CC.COURSES.indexOf(c);
-    const rp = ok ? Math.max(2, tier * tier * 0.6) * G.rpMult() : 0;
-    if (ok) { gainRp(rp); S.stats.quizCorrect++; }
-    S.pop = null;
-    S.popAt = Date.now() + POP_COOLDOWN;
-    G.dirty();
-    return { ok, rp, q, course: c };
-  };
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
     return a;
   }
+  G.shuffle = shuffle;
 
   // ───────── contracts ─────────
   function newContract() {
@@ -558,7 +532,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   G.prestige = function () {
     const gain = G.patentGain();
     if (!G.flag('patent') || gain < 1) return false;
-    const keep = { courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
+    const keep = { school: S.school, courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
     S = Object.assign(fresh(), keep);
     S.stats.runEarned = 0;
     S.stats.prestiges++;
@@ -604,6 +578,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     S = Object.assign(base, obj);
     S.stats = Object.assign(fresh().stats, obj.stats || {});
     S.lab = Object.assign(fresh().lab, obj.lab || {});
+    if (S.lab.run && S.lab.run.xi == null) S.lab.run = null; // run from an older version
     G.recalc();
   }
   // Returns a summary of offline earnings, or null.

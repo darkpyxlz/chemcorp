@@ -1,11 +1,16 @@
 var CC = (globalThis.CC = globalThis.CC || {});
 
-// The manual reaction vessel: setup, matching a recipe, temperature control and the yield report.
+// The manual reaction vessel. Reactions follow simple kinetics:
+//   rate = k(T) · Π (remaining reagent)^order − reverse (for equilibria)
+//   k(T) doubles every 10 °C; above the recommended window, side reactions destroy product.
+// The reaction keeps going until the player works it up, so waiting longer gives more
+// product with diminishing returns.
 (function () {
   const G = CC.Game;
   const L = (CC.Lab = {});
-  const AMBIENT = 22;
   const MAX_SLOTS = 3;
+  const K_EQ = 4; // equilibrium constant for esterifications
+  const HIST_DT = 0.25;
 
   const lab = () => G.state().lab;
 
@@ -63,7 +68,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     if (b.run || !b.last) return;
     apply(b.last);
   };
-  // Fill the vessel with a known procedure (correct reagents, eq and conditions).
   L.load = function (rid) {
     const r = CC.RECIPE[rid];
     if (!r || !G.known(rid) || lab().run) return;
@@ -85,7 +89,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     return CC.RECIPES.find((r) => Object.keys(r.reagents).sort().join('|') === key) || null;
   };
 
-  // What the current setup needs, for display and the start check.
   L.requirements = function () {
     const b = lab();
     const sc = G.scale();
@@ -102,7 +105,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     }
   };
 
-  // Most-overlapping researched recipe — used to nudge the player after a non-reaction.
   function closest(ids) {
     let best = null, score = 0;
     for (const r of CC.RECIPES) {
@@ -115,6 +117,56 @@ var CC = (globalThis.CC = globalThis.CC || {});
     return best;
   }
 
+  // ───────── kinetics ─────────
+  // ~90% conversion at 4 × r.time for a perfect 1:1 run; technicians and mastery speed it up.
+  L.k0 = (r) => ((Object.keys(r.reagents).length === 1 ? 2.3 : 9) / (r.time * 4)) * (r.eqm ? 0.3 : 1) * G.manualSpeed() * (1 + 0.06 * G.mastery(r.id));
+  L.mid = (r) => (r.temp[0] + r.temp[1]) / 2;
+  L.kT = (r, T) => Math.pow(2, (T - L.mid(r)) / 10);
+  // Rate constant for product destruction (side reactions / decomposition) above the window.
+  L.kSide = function (r, T) {
+    if (T <= r.temp[1]) return 0;
+    return L.k0(r) * (r.strict ? 0.5 : 0.01) * (Math.pow(2, (T - r.temp[1]) / 10) - 1);
+  };
+  // Isolation efficiency at work-up (filtration, recrystallisation losses).
+  L.isolation = (r) => Math.min(0.99, (r.eqm ? 0.95 : Math.min(0.98, r.yield / 0.9)) * G.yieldMult(r));
+
+  // d(extent)/dt at temperature T for run state {a, xi}.
+  function rates(run, r, T) {
+    const n = Object.keys(r.reagents).length;
+    const order = n === 1 ? 1 : 2 / n;
+    let f = 1;
+    for (const id in r.reagents) f *= Math.pow(Math.max(0, run.a[id] / r.reagents[id] - run.xi), order);
+    const k = L.k0(r) * L.kT(r, T) * run.kfac;
+    let fwd = k * f;
+    if (r.eqm) {
+      const water = run.xi * (run.dean ? 0.05 : 1) + run.extraWater;
+      fwd -= (k / K_EQ) * run.xi * water;
+    }
+    return { fwd, side: L.kSide(r, T) * Math.max(0, run.xi - run.lost) };
+  }
+  function step(run, r, T, dt) {
+    const { fwd, side } = rates(run, r, T);
+    const dx = Math.max(-run.xi, fwd * dt);
+    run.xi = Math.min(run.theo, run.xi + dx);
+    run.lost = Math.min(run.xi, run.lost + side * dt);
+    return { fwd, side, dx };
+  }
+  L.yieldNow = (run) => (run.theo > 0 ? (run.xi - run.lost) / run.theo : 0);
+  // Net rate of change of the yield fraction (per second).
+  L.rateNow = function (run, T) {
+    const r = CC.RECIPE[run.rid];
+    const { fwd, side } = rates(run, r, T);
+    return run.theo > 0 ? (fwd - side) / run.theo : 0;
+  };
+  // Predict the yield after `sec` more seconds at constant temperature T.
+  L.project = function (run, T, sec) {
+    const r = CC.RECIPE[run.rid];
+    const c = { ...run };
+    const dt = 0.1;
+    for (let t = 0; t < sec; t += dt) step(c, r, T, dt);
+    return L.yieldNow(c);
+  };
+
   L.start = function () {
     const S = G.state();
     const b = lab();
@@ -126,17 +178,12 @@ var CC = (globalThis.CC = globalThis.CC || {});
 
     if (!r || !G.researched(r)) {
       const near = closest(ids);
-      b.report = r
-        ? { type: 'locked', rid: r.id }
-        : { type: 'none', near: near ? near.id : null };
+      b.report = r ? { type: 'locked', rid: r.id } : { type: 'none', near: near ? near.id : null };
       S.stats.failed++;
       return;
     }
     const missing = req.reagents.filter((x) => x.have < x.need - 1e-9);
-    if (missing.length) {
-      b.report = { type: 'missing', missing };
-      return;
-    }
+    if (missing.length) { b.report = { type: 'missing', missing }; return; }
     if (!G.isOwned(b.solvent)) return G.toast(`You haven't stocked ${CC.itemName(b.solvent)}.`, 'bad');
     if (!G.isOwned(b.additive)) return G.toast(`You haven't stocked ${CC.itemName(b.additive)}.`, 'bad');
     if (S.money < req.money) return G.toast(`Solvent and additive cost ${CC.money(req.money)} — not enough money.`, 'bad');
@@ -147,65 +194,58 @@ var CC = (globalThis.CC = globalThis.CC || {});
     }
     S.money -= req.money;
 
-    // Static factors, fixed at the start of the run.
+    // Conditions set a multiplier on the rate constant (kfac). 0 = nothing happens.
     const factors = [];
-    let fatal = false;
-    // Solvent
+    let fatal = null;
     const sv = b.solvent;
-    if (r.fatalSolvent && r.fatalSolvent[sv]) { factors.push({ k: 'Solvent', f: 0, msg: r.fatalSolvent[sv] }); fatal = true; }
+    if (r.fatalSolvent && r.fatalSolvent[sv]) { factors.push({ k: 'Solvent', f: 0, msg: r.fatalSolvent[sv] }); fatal = r.fatalSolvent[sv]; }
     else if (r.solvents.includes(sv)) factors.push({ k: 'Solvent', f: 1, msg: `${CC.itemName(sv)} — suitable.` });
     else if (r.solventFx && r.solventFx[sv]) factors.push({ k: 'Solvent', f: r.solventFx[sv][0], msg: r.solventFx[sv][1] });
     else factors.push({ k: 'Solvent', f: 0.4, msg: `${CC.itemName(sv)} is a poor medium here. Try: ${r.solvents.map(CC.itemName).join(' or ')}.` });
-    // Additive
+
     const ad = b.additive;
     if (!r.additive) {
-      factors.push(ad === 'none'
-        ? { k: 'Additive', f: 1, msg: 'None needed.' }
-        : { k: 'Additive', f: 0.85, msg: `${CC.itemName(ad)} wasn't needed and caused side reactions.` });
+      factors.push(ad === 'none' ? { k: 'Catalyst', f: 1, msg: 'None needed.' } : { k: 'Catalyst', f: 0.85, msg: `${CC.itemName(ad)} wasn't needed and slowed things down.` });
     } else if (ad === r.additive.id) {
-      factors.push({ k: 'Additive', f: 1, msg: `${CC.itemName(ad)} — correct.` });
+      factors.push({ k: 'Catalyst', f: 1, msg: `${CC.itemName(ad)} — correct.` });
     } else if (r.alt && r.alt[ad]) {
-      factors.push({ k: 'Additive', f: r.alt[ad][0], msg: r.alt[ad][1] });
+      factors.push({ k: 'Catalyst', f: r.alt[ad][0], msg: r.alt[ad][1] });
     } else if (ad === 'none') {
       const f = r.additive.missing != null ? r.additive.missing : 0.15;
-      factors.push({ k: 'Additive', f, msg: r.additive.why || `Missing ${CC.itemName(r.additive.id)}.` });
-      if (f === 0) fatal = true;
+      factors.push({ k: 'Catalyst', f, msg: r.additive.why || `Missing ${CC.itemName(r.additive.id)}.` });
     } else {
-      factors.push({ k: 'Additive', f: 0.2, msg: `${CC.itemName(ad)} is the wrong additive. ${r.additive.why || ''}` });
+      factors.push({ k: 'Catalyst', f: 0.2, msg: `${CC.itemName(ad)} is the wrong additive. ${r.additive.why || ''}` });
     }
-    // Atmosphere
+
     if (r.atm) {
       if (b.atm === r.atm) factors.push({ k: 'Atmosphere', f: 1, msg: `${G.ATMS[b.atm].name} — correct.` });
       else {
         const fx = (r.atmFx && r.atmFx[b.atm]) || [0.5, `This reaction wants ${G.ATMS[r.atm].name}.`];
         factors.push({ k: 'Atmosphere', f: fx[0], msg: fx[1] });
-        if (fx[0] === 0) fatal = true;
       }
     } else if (b.atm === 'h2' || b.atm === 'co') {
       factors.push({ k: 'Atmosphere', f: 0.8, msg: `${G.ATMS[b.atm].name} wasn't needed and interfered.` });
     }
-    // Stoichiometry
-    let extent = Infinity, limiting = null;
-    for (const s of b.slots) {
-      const ratio = s.eq / r.reagents[s.id];
-      if (ratio < extent) { extent = ratio; limiting = s.id; }
-    }
-    extent = Math.min(1, extent);
-    const excess = b.slots.filter((s) => s.eq / r.reagents[s.id] > extent + 1e-6).map((s) => s.id);
-    const stoMsg = extent >= 1 && !excess.length
-      ? 'Perfect ratio.'
-      : `${extent < 1 ? `Limiting reagent: ${CC.ITEMS[limiting].name} (only ${CC.pct(extent)} of a full batch). ` : ''}${excess.length ? `Wasted excess: ${excess.map((x) => CC.ITEMS[x].name).join(', ')}.` : ''}`;
-    factors.push({ k: 'Stoichiometry', f: extent, msg: stoMsg, sto: true });
+    const kfac = fatal ? 0 : factors.reduce((p, f) => p * f.f, 1);
+
+    const a = {};
+    for (const s of b.slots) a[s.id] = s.eq;
+    let theo = Infinity, limiting = null;
+    for (const id in r.reagents) { const v = a[id] / r.reagents[id]; if (v < theo) { theo = v; limiting = id; } }
+    const excess = Object.keys(r.reagents).filter((id) => a[id] / r.reagents[id] > theo + 1e-6);
 
     b.last = snapshot(b);
     b.report = null;
-    b.run = { rid: r.id, t: 0, dur: G.manualTime(r), score: 0, below: 0, above: 0, tt: 0, noise: Math.random(), factors, extent, scale: req.sc, fatal };
+    b.run = {
+      rid: r.id, t: 0, xi: 0, lost: 0, theo, limiting, excess, a, kfac, fatal, factors, scale: req.sc,
+      dean: !!(r.eqm && G.flag('deanstark')), extraWater: r.eqm && sv === 's_water' ? 3 : 0,
+      hist: [[0, 0, b.T]], histT: 0, sumT: 0, peak: 0, r0: null,
+    };
     G.dirty();
   };
 
-  L.stir = function () {
-    const run = lab().run;
-    if (run) run.t = Math.min(run.dur, run.t + run.dur * 0.04);
+  L.workup = function () {
+    if (lab().run) finish();
   };
   L.abort = function () {
     const b = lab();
@@ -215,33 +255,39 @@ var CC = (globalThis.CC = globalThis.CC || {});
     G.dirty();
   };
 
-  L.tempScore = function (r, T) {
-    const [lo, hi] = r.temp;
-    if (T >= lo && T <= hi) return 1;
-    const d = T < lo ? lo - T : T - hi;
-    return Math.max(0, 1 - d / (r.strict ? 6 : 20));
-  };
+  L.maxTime = (r) => r.time * 60;
 
   L.tick = function (dt) {
     const b = lab();
     const e = G.equip();
     if (b.set < e.tMin || b.set > e.tMax) b.set = CC.clamp(b.set, e.tMin, e.tMax);
     const run = b.run;
-    const r = run ? CC.RECIPE[run.rid] : null;
     let exo = 0;
-    if (run && r.exo) {
-      run.noise = CC.clamp(run.noise + (Math.random() - 0.5) * dt * 1.5, 0, 1);
-      const progress = run.t / run.dur;
-      exo = r.exo * (0.5 + run.noise) * (1 - 0.6 * progress);
+    if (run) {
+      const r = CC.RECIPE[run.rid];
+      // integrate in small sub-steps for stability
+      const n = Math.max(1, Math.ceil(dt / 0.05));
+      for (let i = 0; i < n; i++) {
+        const h = dt / n;
+        const { dx } = step(run, r, b.T, h);
+        exo = r.exo * Math.max(0, dx / h) * r.time * 0.15;
+        b.T += ((b.set - b.T) * e.rate + exo) * h + (Math.random() - 0.5) * e.noise * h;
+        b.T = CC.clamp(b.T, -40, 320);
+      }
+      run.t += dt;
+      run.sumT += b.T * dt;
+      if (run.r0 == null && run.t >= 0.5) run.r0 = L.yieldNow(run) / run.t;
+      const y = L.yieldNow(run);
+      run.peak = Math.max(run.peak, y);
+      if (run.t - run.histT >= HIST_DT) {
+        run.histT = run.t;
+        run.hist.push([+run.t.toFixed(2), +y.toFixed(4), +b.T.toFixed(1)]);
+        if (run.hist.length > 600) run.hist = run.hist.filter((_, i) => i % 2 === 0);
+      }
+      if (run.t >= L.maxTime(r)) finish();
+      return;
     }
-    b.T += ((b.set - b.T) * e.rate + exo) * dt + (Math.random() - 0.5) * e.noise * dt;
-    if (!run) return;
-    run.t += dt;
-    run.tt += dt;
-    run.score += L.tempScore(r, b.T) * dt;
-    if (b.T < r.temp[0]) run.below += dt;
-    else if (b.T > r.temp[1]) run.above += dt;
-    if (run.t >= run.dur) finish();
+    b.T += (b.set - b.T) * e.rate * dt + (Math.random() - 0.5) * e.noise * dt;
   };
 
   function finish() {
@@ -251,27 +297,20 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const r = CC.RECIPE[run.rid];
     b.run = null;
 
-    const tf = run.tt > 0 ? run.score / run.tt : 0;
-    let tmsg = `${CC.pct(tf)} of the run spent in the ${r.temp[0]}–${r.temp[1]} °C window.`;
-    if (tf < 0.9) {
-      if (run.above > run.below) tmsg += r.strict ? ' Too hot — the product decomposed.' : ' Too hot — side reactions crept in.';
-      else tmsg += ' Too cold — the reaction barely moved.';
-    }
-    const factors = run.factors.slice();
-    factors.splice(factors.length - 1, 0, { k: 'Temperature', f: Math.max(0.03, tf), msg: tmsg });
-
-    let y = G.baseYield(r) * G.yieldMult(r);
-    for (const f of factors) if (!f.sto) y *= f.f;
-    y = Math.min(0.99, y);
-    if (run.fatal) y = 0;
+    const conv = Math.max(0, L.yieldNow(run)); // fraction of theoretical in the flask
+    const iso = L.isolation(r);
+    const y = conv * iso; // isolated yield vs limiting reagent
+    const made = run.theo * conv * iso; // batch units of product
 
     const out = [];
     for (const p in r.products) {
-      const amt = r.products[p] * run.scale * run.extent * y;
+      const amt = r.products[p] * run.scale * made;
       if (amt > 1e-9) { G.addInv(p, amt); out.push({ id: p, amt }); }
     }
 
-    const success = y * run.extent >= 0.3;
+    const avgT = run.t > 0 ? run.sumT / run.t : b.T;
+    const lostFrac = run.xi > 0 ? run.lost / run.theo : 0;
+    const success = y >= 0.3 && made >= 0.3;
     const rec = G.rec(r.id);
     const first = success && rec.runs < 1;
     let rp = 0;
@@ -284,12 +323,24 @@ var CC = (globalThis.CC = globalThis.CC || {});
       if (!first && G.mastery(r.id) > before) G.toast(`${r.name} reached mastery ★${G.mastery(r.id)}`, 'good');
       if (G.runs(r.id) === G.automateAt(r) && G.flag('automation')) G.toast(`${r.name} can now be automated in the Plant!`, 'good');
     } else S.stats.failed++;
-    rec.best = Math.max(rec.best || 0, y * run.extent);
+    rec.best = Math.max(rec.best || 0, y);
     S.stats.manualRuns++;
 
-    b.report = { type: 'result', rid: r.id, y, extent: run.extent, factors, out, rp, first, success, fatal: run.fatal };
+    // half-time: first time the curve reached half of its peak
+    const half = run.hist.find((h) => h[1] >= run.peak / 2);
+    let tmsg = `Average ${avgT.toFixed(0)} °C (recommended ${r.temp[0]}–${r.temp[1]} °C).`;
+    if (avgT < r.temp[0] - 5) tmsg += ` Too cold: the rate constant was ~${CC.fmt(1 / L.kT(r, avgT), 1)}× lower than at the midpoint.`;
+    else if (lostFrac > 0.02) tmsg += ` Too hot: side reactions destroyed ${CC.pct(lostFrac)} of the product.`;
+    const kin = { k: 'Kinetics', f: conv, msg: `${CC.pct(conv)} conversion after ${run.t.toFixed(1)} s${half && run.peak > 0.05 ? ` · t½ ≈ ${half[0].toFixed(1)} s` : ''}${run.r0 ? ` · initial rate ${CC.fmt(run.r0 * 100, 1)} %/s` : ''}.`, pct: true };
+    const sto = {
+      k: 'Stoichiometry', f: Math.min(1, run.theo), pct: true,
+      msg: `Limiting reagent: ${CC.ITEMS[run.limiting].name} (${CC.fmt(run.theo)} batch${run.theo === 1 ? '' : 'es'} max).${run.excess.length ? ` Excess ${run.excess.map((x) => CC.ITEMS[x].name).join(', ')} sped things up${r.eqm ? ' and pushed the equilibrium' : ''}; the leftover is lost.` : ''}`,
+    };
+    const factors = run.factors.map((f) => ({ ...f, rate: true }));
+    factors.push({ k: 'Temperature', f: Math.max(0, 1 - lostFrac), msg: tmsg }, kin, sto, { k: 'Isolation', f: iso, msg: 'Work-up and purification losses (better with mastery and recrystallisation).' });
+    if (r.eqm) factors.push({ k: 'Equilibrium', f: 1, msg: run.dean ? 'The Dean–Stark trap removed water, so the equilibrium kept moving to products.' : 'Esterification is reversible (K ≈ 4): water builds up and the reverse reaction catches up. Excess alcohol or a Dean–Stark trap helps.', info: true });
+
+    b.report = { type: 'result', rid: r.id, y, made, conv, factors, out, rp, first, success, fatal: run.fatal, hist: run.hist, theo: run.theo };
     G.dirty();
   }
-
-  L.AMBIENT = AMBIENT;
 })();

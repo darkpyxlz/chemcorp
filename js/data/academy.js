@@ -30,13 +30,13 @@ CC.COURSES = [
     ],
   },
   {
-    id: 'acids_bases', name: 'Acids & Bases', icon: '⚗️', reward: 10, req: 'lab_basics',
-    desc: 'Neutralisation, pKa and soap-making.',
+    id: 'acids_bases', name: 'Organic Acids & Bases', icon: '⚗️', reward: 10, req: 'lab_basics',
+    desc: 'Carboxylic acids, pKa and soap-making.',
     lessons: [
-      { t: 'Neutralisation', b: `
-<p>A <b>Brønsted acid</b> donates H⁺; a <b>base</b> accepts it. Strong acid + strong base gives a salt and water:</p>
-<div class="eq">HCl + NaOH → NaCl + H₂O &nbsp;&nbsp; ΔH ≈ −57 kJ/mol</div>
-<p>The real reaction is just H⁺ + OH⁻ → H₂O; Na⁺ and Cl⁻ are <b>spectator ions</b>. It's exothermic, so the mixture warms up.</p>` },
+      { t: 'Carboxylic acids', b: `
+<p>A <b>Brønsted acid</b> donates H⁺; a <b>base</b> accepts it. The –COOH group of a carboxylic acid gives up its proton to hydroxide, forming a water-soluble <b>carboxylate salt</b>:</p>
+<div class="eq">CH₃COOH + NaOH → CH₃COO⁻Na⁺ + H₂O</div>
+<p>The carboxylate is stabilised by <b>resonance</b>: the negative charge is shared equally between both oxygens. That's why carboxylic acids (pKa ≈ 5) are far more acidic than alcohols (pKa ≈ 16).</p>` },
       { t: 'pH and pKa', b: `
 <p><b>pH = −log[H⁺]</b>. Strong acids dissociate completely; weak acids only partly. Acid strength is measured by <b>pKa</b> — the <i>lower</i> the pKa, the <i>stronger</i> the acid.</p>
 <ul><li>HCl ≈ −6 (very strong)</li><li>acetic acid 4.76</li><li>phenol ≈ 10</li><li>water 15.7, ethanol ≈ 16</li><li>C–H next to a ketone ≈ 19–20</li></ul>
@@ -47,7 +47,7 @@ CC.COURSES = [
 <p>This is irreversible — the carboxylate can't be attacked by an alcohol. Soap molecules have a polar, water-loving head and a long greasy tail; they form <b>micelles</b> around oil droplets so water can wash them away.</p>` },
     ],
     quiz: [
-      { q: 'Products of HCl + NaOH?', o: ['NaH + HClO', 'NaCl + H₂O', 'Cl₂ + NaOH₂', 'No reaction'], a: 1, e: 'Acid + base → salt + water.' },
+      { q: 'Products of CH₃COOH + NaOH?', o: ['CH₃CH₂OH + NaO', 'CH₃COO⁻Na⁺ + H₂O', 'CH₃COONa + H₂', 'No reaction'], a: 1, e: 'Acid + base → carboxylate salt + water.' },
       { q: 'Which is the strongest acid (lowest pKa)?', o: ['Ethanol', 'Phenol', 'Acetic acid', 'HCl'], a: 3, e: 'HCl ≈ −6, acetic 4.76, phenol ≈ 10, ethanol ≈ 16.' },
       { q: 'How many NaOH are needed to fully saponify one triglyceride?', o: ['1', '2', '3', '6'], a: 2, e: 'One per ester group — a triglyceride has three.' },
       { q: 'Why does soap remove grease?', o: ['It oxidises the grease', 'It has a polar head and nonpolar tail that form micelles', 'It is a strong acid', 'It evaporates the grease'], a: 1, e: 'Tails dissolve in the grease, heads face the water.' },
@@ -126,13 +126,14 @@ CC.COURSES = [
     ],
   },
   {
-    id: 'redox', name: 'Hydride Reductions', icon: '🔋', reward: 60, req: 'acylation',
-    desc: 'Oxidation levels, NaBH₄ and LiAlH₄.',
+    id: 'redox', name: 'Redox: Oxidation & Reduction', icon: '🔋', reward: 60, req: 'acylation',
+    desc: 'Oxidation levels, bleach oxidation, NaBH₄ and LiAlH₄.',
     lessons: [
       { t: 'Oxidation levels', b: `
 <p>Carbon can be climbed up and down an oxidation ladder:</p>
 <div class="eq">alkane → alcohol → aldehyde/ketone → carboxylic acid → CO₂</div>
-<p>Going down (reduction) adds hydrogen. In the lab, the go-to sources of hydride (H⁻) are <b>NaBH₄</b> and <b>LiAlH₄</b>.</p>` },
+<p>Going down (reduction) adds hydrogen. In the lab, the go-to sources of hydride (H⁻) are <b>NaBH₄</b> and <b>LiAlH₄</b>.</p>
+<p>Going up (oxidation): <b>secondary alcohols → ketones</b>; primary alcohols → aldehydes → carboxylic acids; tertiary alcohols resist oxidation. Household bleach (NaOCl) in acetic acid forms HOCl, a cheap, green oxidant that turns cyclohexanol into cyclohexanone.</p>` },
       { t: 'Sodium borohydride', b: `
 <p>NaBH₄ is mild and selective: it reduces <b>aldehydes and ketones</b> but generally leaves esters, acids and amides alone. It tolerates methanol, ethanol, even water.</p>
 <p>Each BH₄⁻ can deliver up to <b>four</b> hydrides, so 0.25 eq is the theoretical minimum.</p>

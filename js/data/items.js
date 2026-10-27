@@ -53,12 +53,15 @@ CC.ITEMS = {};
     { id: 'adipoyl', name: 'Adipoyl chloride', f: 'ClCO(CH₂)₄COCl', cost: 50, desc: 'A six-carbon diacid chloride monomer.' },
     { id: 'brbn', name: '4-Bromobenzonitrile', f: 'BrC₆H₄CN', cost: 120, desc: 'An aryl bromide carrying a nitrile.' },
     { id: 'pentylboronic', name: '4-Pentylphenylboronic acid', f: 'C₅H₁₁C₆H₄B(OH)₂', cost: 200, desc: 'An arylboronic acid — air- and water-stable.' },
+    { id: 'naocl', name: 'Sodium hypochlorite (bleach)', f: 'NaOCl', cost: 1, color: '#f4ffd8', desc: 'Household bleach — a cheap, green oxidant.' },
+    { id: 'aniline', name: 'Aniline', f: 'C₆H₅NH₂', cost: 6, desc: 'The simplest aromatic amine.' },
     { id: 'k2co3', name: 'Potassium carbonate', f: 'K₂CO₃', cost: 3, desc: 'A mild inorganic base.' },
   ]);
 
   // value = base sell price per mol. sellable:false = too unstable to ship.
   reg('product', [
-    { id: 'nacl', name: 'Sodium chloride', f: 'NaCl', value: 3.5, color: '#f4f7fb', desc: 'Table salt.' },
+    { id: 'cyclohexanone', name: 'Cyclohexanone', f: 'C₆H₁₀O', value: 25, color: '#f1f8ff', desc: 'A cyclic ketone — precursor to nylon-6.' },
+    { id: 'acetanilide', name: 'Acetanilide', f: 'C₆H₅NHCOCH₃', value: 30, color: '#ffffff', desc: 'An amide; once sold as the painkiller "Antifebrin".' },
     { id: 'soap', name: 'Soap', f: 'C₁₇H₃₅COO⁻Na⁺', value: 3, color: '#f5e6c8', desc: 'Sodium stearate — a surfactant with a polar head and greasy tail.' },
     { id: 'glycerol', name: 'Glycerol', f: 'C₃H₅(OH)₃', value: 4, color: '#eef6ff', desc: 'A sweet, viscous triol used in cosmetics and food.' },
     { id: 'etoac', name: 'Ethyl acetate', f: 'CH₃COOC₂H₅', value: 12, color: '#dff4ff', desc: 'A fruity-smelling solvent (nail-polish remover, decaf coffee).' },

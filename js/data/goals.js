@@ -5,10 +5,11 @@ CC.GOALS = (function () {
   const runs = (S, id) => (S.recipes[id] ? S.recipes[id].runs : 0);
   const passed = (S) => Object.values(S.courses).filter((c) => c.passed).length;
   return [
-    { id: 'g_first', text: 'Run your first reaction: neutralise HCl with NaOH in the Lab.', check: (S) => runs(S, 'neut') >= 1, reward: { money: 20 } },
-    { id: 'g_sell', text: 'Sell some sodium chloride on the Market.', check: (S) => S.stats.sold > 0, reward: { rp: 3 } },
+    { id: 'g_first', text: 'Make your first ester: acetic acid + ethanol with a drop of H₂SO₄, warmed to ~75 °C. Work it up when the yield curve flattens.', check: (S) => runs(S, 'etoac') >= 1, reward: { money: 20 } },
+    { id: 'g_sell', text: 'Sell some ethyl acetate on the Market.', check: (S) => S.stats.sold > 0, reward: { rp: 3 } },
     { id: 'g_study', text: 'Study "Lab Fundamentals" in the Academy and pass its quiz.', check: (S) => !!(S.courses.lab_basics && S.courses.lab_basics.passed), reward: { money: 30 } },
-    { id: 'g_research', text: 'Research a new technology (try Saponification — it needs the Acids & Bases course).', check: (S) => Object.keys(S.tech).length > 1, reward: { money: 50 } },
+    { id: 'g_research', text: 'Research a new technology (try Saponification — it needs the Organic Acids & Bases course).', check: (S) => Object.keys(S.tech).length > 1, reward: { money: 50 } },
+    { id: 'g_school', text: 'Play a Chem School round in the Academy.', check: (S) => S.school && S.school.stats.rounds > 0, reward: { rp: 5 } },
     { id: 'g_buy', text: 'Buy reagents on the Market to keep your lab supplied.', check: (S) => S.stats.bought > 0, reward: { rp: 5 } },
     { id: 'g_500', text: 'Earn $500 in total.', check: (S) => S.stats.lifetimeEarned >= 500, reward: { rp: 10 } },
     { id: 'g_five', text: 'Successfully run 5 different reactions.', check: (S) => Object.values(S.recipes).filter((r) => r.runs >= 1).length >= 5, reward: { money: 300 } },

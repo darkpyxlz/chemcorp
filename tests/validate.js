@@ -13,7 +13,7 @@ const ctx = {
 };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/game.js', 'js/lab.js']) {
+for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/game.js', 'js/lab.js', 'js/school.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 }
 const CC = ctx.CC;
@@ -103,28 +103,52 @@ console.log('Engine');
 G.newGame();
 const S = () => G.state();
 CC.Game.on(() => {});
-test('fresh game can run the first neutralisation', () => {
-  CC.Lab.add('hcl'); CC.Lab.add('naoh'); CC.Lab.setSolvent('s_water'); CC.Lab.setTemp(25);
-  for (let i = 0; i < 50; i++) G.tick(0.1);
+function runFor(sec, setT) {
+  for (let i = 0; i < sec * 10 && S().lab.run; i++) { if (setT != null) CC.Lab.setTemp(setT); G.tick(0.1); }
+}
+function esterRun(eqEtoh, T, sec) {
+  const st = S();
+  st.inv.acoh = 10; st.inv.etoh = 10;
+  CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('etoh');
+  while (st.lab.slots[1].eq < eqEtoh) CC.Lab.stepEq('etoh', 1);
+  CC.Lab.setSolvent('none'); CC.Lab.setAdditive('a_h2so4'); CC.Lab.setTemp(T); st.lab.T = T;
   CC.Lab.start();
-  assert(S().lab.run, 'run started');
-  for (let i = 0; i < 100 && S().lab.run; i++) G.tick(0.1);
-  const rep = S().lab.report;
+  runFor(sec, T);
+  CC.Lab.workup();
+  return st.lab.report;
+}
+test('fresh game can make the first ester', () => {
+  const rep = esterRun(1, 75, 90);
   assert.strictEqual(rep.type, 'result');
-  assert(rep.y > 0.85, 'yield ' + rep.y);
-  assert(S().inv.nacl > 0.85, 'salt made');
+  assert(rep.y > 0.5 && rep.y < 0.68, 'equilibrium-limited yield ' + rep.y);
+  assert(S().inv.etoac > 0.5, 'ester made');
   assert(S().rp > 10, 'rp ' + S().rp);
-  assert(G.runs('neut') === 1);
+  assert(G.runs('etoac') === 1);
 });
-test('wrong stoichiometry limits product', () => {
-  CC.Lab.stepEq('hcl', -1); // 0.5 eq
-  CC.Lab.start();
-  for (let i = 0; i < 100 && S().lab.run; i++) G.tick(0.1);
-  const rep = S().lab.report;
-  assert(Math.abs(rep.extent - 0.5) < 1e-9, 'extent ' + rep.extent);
+test('excess alcohol raises the equilibrium yield', () => {
+  const y1 = esterRun(1, 75, 200).y, y3 = esterRun(3, 75, 200).y;
+  assert(y3 > y1 + 0.15, `1 eq ${y1} vs 3 eq ${y3}`);
+});
+test('waiting longer gives more product with diminishing returns', () => {
+  const a = esterRun(1, 75, 10).y, b = esterRun(1, 75, 20).y, c = esterRun(1, 75, 40).y;
+  assert(b > a && c > b, `${a} ${b} ${c}`);
+  assert(c - b < b - a, `diminishing returns ${a} ${b} ${c}`);
+});
+test('moderate overheating speeds the reaction instead of wrecking it', () => {
+  const cool = esterRun(1, 75, 10).y, hot = esterRun(1, 100, 10).y;
+  assert(hot > 0.4, `hot run still gives product ${hot} (cool ${cool})`);
+  assert(hot >= cool - 0.05, `hot ${hot} vs cool ${cool}`);
+});
+test('half the limiting reagent halves the product', () => {
+  const st = S();
+  st.inv.acoh = 10; st.inv.etoh = 10;
+  CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('etoh'); CC.Lab.stepEq('acoh', -1);
+  CC.Lab.setAdditive('a_h2so4'); CC.Lab.start();
+  assert(Math.abs(st.lab.run.theo - 0.5) < 1e-9);
+  CC.Lab.workup();
 });
 test('unknown combination gives no reaction and consumes nothing', () => {
-  S().inv.acoh = 1;
+  S().inv.naoh = 1;
   CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('naoh');
   const before = S().inv.naoh;
   CC.Lab.start();
@@ -132,16 +156,16 @@ test('unknown combination gives no reaction and consumes nothing', () => {
   assert.strictEqual(S().inv.naoh, before);
 });
 test('unresearched recipe is reported as locked', () => {
-  S().inv.etoh = 1;
-  CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('etoh');
+  S().inv.isoamyl_oh = 1;
+  CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('isoamyl_oh');
   CC.Lab.start();
   assert.strictEqual(S().lab.report.type, 'locked');
 });
 test('selling lowers demand and earns money', () => {
   const m = S().money;
-  const v = G.sell('nacl', 0.5);
+  const v = G.sell('etoac', 0.5);
   assert(v > 0 && S().money > m);
-  assert(G.demand('nacl') < 1);
+  assert(G.demand('etoac') < 1);
 });
 test('quiz pass awards RP and unlocks research', () => {
   const r0 = S().rp;
@@ -157,16 +181,16 @@ test('fatal conditions zero the yield (Grignard in water)', () => {
   st.inv.phbr = 1; st.inv.mg = 1;
   CC.Lab.clear(); CC.Lab.add('phbr'); CC.Lab.add('mg'); CC.Lab.setSolvent('s_water'); CC.Lab.setAdditive('none'); CC.Lab.setAtm('n2');
   CC.Lab.start();
-  for (let i = 0; i < 300 && st.lab.run; i++) G.tick(0.1);
+  runFor(20); CC.Lab.workup();
   assert.strictEqual(st.lab.report.y, 0);
   assert(st.lab.report.fatal);
 });
 test('automation produces and auto-sells', () => {
   const st = S();
   st.tech.t_automation = true; st.tech.t_autosell = true; st.tech.t_autobuy = true; G.recalc();
-  st.recipes.neut.runs = 10; st.money = 1000;
-  assert(G.buildReactor('neut'));
-  st.autoSell.nacl = true;
+  st.recipes.etoac.runs = 10; st.money = 1000;
+  assert(G.buildReactor('etoac'));
+  st.autoSell.etoac = true;
   const m = st.stats.lifetimeEarned;
   for (let i = 0; i < 600; i++) G.tick(0.1);
   assert(st.stats.autoBatches > 1, 'batches ' + st.stats.autoBatches);
@@ -200,15 +224,45 @@ test('every recipe can be completed with its documented procedure', () => {
     st.lab.T = st.lab.set;
     CC.Lab.start();
     assert(st.lab.run, r.id + ' did not start: ' + JSON.stringify(st.lab.report));
-    for (let i = 0; i < 2000 && st.lab.run; i++) {
+    const mid = (r.temp[0] + r.temp[1]) / 2;
+    for (let i = 0; i < r.time * 100 && st.lab.run; i++) {
       // crude operator: counter exotherms by lowering the setpoint
-      const mid = (r.temp[0] + r.temp[1]) / 2;
       CC.Lab.setTemp(st.lab.set + (mid - st.lab.T) * 0.3);
       G.tick(0.05);
     }
+    CC.Lab.workup();
     const rep = st.lab.report;
     assert(rep.type === 'result' && rep.success, `${r.id}: yield ${rep.y} ${JSON.stringify(rep.factors.filter((f) => f.f < 1))}`);
   }
+});
+
+console.log('Chem School');
+test('rounds build for every category and pay RP with spaced repetition', () => {
+  G.newGame();
+  const st = S();
+  for (const t of CC.TECH) st.tech[t.id] = true;
+  G.recalc();
+  G.readLesson('lab_basics', 0);
+  for (const cat of ['fg', 'name', 'rxn', 'cond', 'acad', 'mixed']) {
+    for (let k = 0; k < 20; k++) {
+      const rd = CC.School.start(cat);
+      assert(rd && rd.qs.length === 5, cat + ' round');
+      for (const q of rd.qs) {
+        assert(q.options.length >= 2 && q.options.length <= 4 && new Set(q.options).size === q.options.length, cat + ' options ' + JSON.stringify(q));
+        assert(q.answer >= 0 && q.explain, cat + ' answer');
+      }
+    }
+  }
+  const rd = CC.School.start('fg');
+  const rp0 = st.rp;
+  const first = CC.School.answer(rd, rd.qs[0].answer);
+  assert(first.correct && first.rp > 0 && st.rp > rp0);
+  // same item again immediately: too soon, no pay
+  const id = rd.qs[0].id;
+  const again = { qs: [Object.assign({}, rd.qs[0])], i: 0, correct: 0, streak: 0, earned: 0, answers: [], done: false, bonus: 0 };
+  const r2 = CC.School.answer(again, again.qs[0].answer);
+  assert(r2.tooSoon && r2.rp === 0, 'too soon');
+  assert.strictEqual(CC.School.state().items.fg[id].box, 1);
 });
 
 console.log(failures ? `\n${failures} test(s) failed` : '\nAll tests passed');

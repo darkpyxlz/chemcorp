@@ -12,7 +12,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   let tab = 'lab';
   let dirty = true;
   let pointerDown = false;
-  const sub = { tech: null, course: null, lesson: 0, quiz: false, answers: {}, result: null, popResult: null, buyAmt: 1, nbOpen: {} };
+  const sub = { tech: null, course: null, lesson: 0, quiz: false, answers: {}, result: null, buyAmt: 1, nbOpen: {}, acTab: 'school', round: null, last: null, learnFilter: 'all' };
 
   const TABS = [
     ['lab', '🧪 Lab'], ['market', '🏪 Market'], ['upgrades', '🛠️ Upgrades'], ['plant', '🏭 Plant'],
@@ -53,7 +53,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     eq: (d) => L.stepEq(d.id, +d.d),
     atm: (d) => L.setAtm(d.a),
     start: () => L.start(),
-    stir: () => L.stir(),
+    workup: () => L.workup(),
     abort: () => L.abort(),
     repeat: () => L.repeat(),
     clear: () => L.clear(),
@@ -87,9 +87,12 @@ var CC = (globalThis.CC = globalThis.CC || {});
     pick: (d) => { if (!sub.result) sub.answers[+d.q] = +d.o; },
     submitQuiz: () => { sub.result = G.submitQuiz(sub.course, sub.answers); },
     retake: () => { sub.answers = {}; sub.result = null; },
-    popStart: () => { sub.popResult = null; G.popQuestion(); },
-    popAns: (d) => { sub.popResult = G.answerPop(+d.o); },
-    popOk: () => { sub.popResult = null; },
+    acTab: (d) => { sub.acTab = d.t; sub.course = null; },
+    school: (d) => { sub.round = CC.School.start(d.cat, d.due === '1'); sub.last = null; if (!sub.round) U.toast('Nothing to ask about yet in that category.', 'bad'); },
+    schoolAns: (d) => { if (sub.round && !sub.last) sub.last = CC.School.answer(sub.round, +d.o); },
+    schoolNext: () => { sub.last = null; },
+    schoolQuit: () => { sub.round = null; sub.last = null; },
+    learnFilter: (d) => { sub.learnFilter = d.f; },
     // stats
     save: () => { G.save(); U.toast('Game saved.', 'good'); },
     exportSave: () => { const t = $('#save-text'); t.value = G.exportSave(); t.select(); U.toast('Save copied into the box below — keep it somewhere safe.'); },
@@ -169,7 +172,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   function tabs() {
     const badges = {
       research: CC.TECH.filter((t) => G.canResearch(t)).length,
-      academy: G.popReady() ? '!' : 0,
+      academy: CC.School.dueCount(),
       market: S.contracts.length,
     };
     $('#tabs').innerHTML = TABS.map(([id, label]) => {
@@ -208,7 +211,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
         case 'rxp': { const g = S.reactors[id]; el.style.width = g ? CC.pct(Math.min(1, g.p)) : '0%'; break; }
         case 'rxs': { const g = S.reactors[id]; el.innerHTML = g ? rxStatus(g) : ''; break; }
         case 'ct': { const c = S.contracts.find((x) => x.id === +id); el.textContent = c ? CC.time((c.expires - Date.now()) / 1000) : ''; break; }
-        case 'pop': el.textContent = CC.time((S.popAt - Date.now()) / 1000); break;
         case 'rp': el.textContent = CC.fmt(S.rp); break;
       }
     });
@@ -242,10 +244,10 @@ var CC = (globalThis.CC = globalThis.CC || {});
       <h2>⚗️ Welcome to ChemCorp</h2>
       <p>You run a tiny organic chemistry lab. Turn cheap reagents into valuable products, learn real chemistry, and grow into an automated chemical plant.</p>
       <ul>
-        <li><b>🧪 Lab</b> — click reagents on your shelf to add them to the flask, set their <b>equivalents</b>, pick a <b>solvent</b>, <b>catalyst</b>, <b>atmosphere</b> and <b>bath temperature</b>, then start. Keep the thermometer inside the green window — exothermic reactions heat themselves!</li>
+        <li><b>🧪 Lab</b> — click reagents on your shelf to add them to the flask, set their <b>equivalents</b>, pick a <b>solvent</b>, <b>catalyst</b>, <b>atmosphere</b> and <b>bath temperature</b>, then start. Watch the yield-vs-time graph: hotter is faster (rate doubles every 10 °C) but overheating causes side reactions, and exothermic reactions heat themselves. <b>Work up</b> when the curve flattens — waiting longer gives more product, with diminishing returns.</li>
         <li>The <b>Notebook</b> (right column) gives hints for every reaction you've researched. Get one right and the full procedure is recorded so you can load it in one click.</li>
         <li><b>🏪 Market</b> — buy reagents, stock solvents/catalysts, sell products and fill contracts. Selling a lot of one product lowers its price for a while — diversify!</li>
-        <li><b>🎓 Academy</b> — short lessons and quizzes. Passing earns Research Points (RP) and is required for many technologies. Pop quizzes give bonus RP.</li>
+        <li><b>🎓 Academy</b> — <b>Chem School</b> rounds (functional groups, naming, reactions, conditions) pay RP and use spaced repetition: each item needs 10 reviews, spread out over days, to be learned. <b>Courses</b> teach the theory and unlock research.</li>
         <li><b>🔬 Research</b> — spend RP and money to unlock reactions and equipment.</li>
         <li><b>🏭 Plant</b> — once you've run a reaction enough times by hand, build reactors that run it automatically, even while you're away.</li>
       </ul>
@@ -313,11 +315,12 @@ var CC = (globalThis.CC = globalThis.CC || {});
 
     const r = run ? CC.RECIPE[run.rid] : null;
     const vessel = `<section class="panel">
-      <h3>${r ? `⏳ ${esc(r.name)}` : 'Reaction vessel'}<span class="spacer"></span>${r ? `<span class="tag">${tempText(r)}</span>` : ''}</h3>
+      <h3>${r ? `⏳ ${esc(r.name)}` : 'Reaction vessel'}<span class="spacer"></span>${r ? `<span class="tag" title="Recommended range">${tempText(r)}</span>` : ''}</h3>
       <div class="vessel-wrap">${flaskSvg()}${thermoSvg()}</div>
-      <div class="bar"><i id="lab-prog"></i></div>
-      <div class="readouts"><span>Flask <b id="lab-T">${b.T.toFixed(1)}</b> °C</span><span id="lab-win-wrap">${r ? `In window <b id="lab-win">—</b>` : 'Set the bath before you start — it takes time to heat or cool.'}</span>${r ? `<span>Time <b id="lab-time">—</b></span>` : ''}</div>
-      ${run ? `<div class="row run-controls"><button class="btn" data-act="stir" title="Vigorous stirring speeds things up a little">🌀 Stir</button><button class="btn danger" data-act="abort">✖ Abort</button></div>` : ''}
+      <div class="readouts"><span>Flask <b id="lab-T">${b.T.toFixed(1)}</b> °C</span>${r ? `<span>Time <b id="lab-time">—</b></span><span>Yield <b id="lab-y">—</b></span><span>Rate <b id="lab-rate">—</b></span>` : '<span>Set the bath before you start — it takes time to heat or cool.</span>'}</div>
+      ${r || (S.lab.report && S.lab.report.hist) ? graphSvg() : ''}
+      ${r ? `<div class="note" id="lab-proj" style="text-align:center"></div>` : ''}
+      ${run ? `<div class="row run-controls"><button class="btn primary" data-act="workup" title="Stop the reaction and isolate the product">🧪 Work up now</button><button class="btn danger" data-act="abort">✖ Abort</button></div>` : ''}
       ${reportHtml()}
     </section>`;
 
@@ -350,18 +353,19 @@ var CC = (globalThis.CC = globalThis.CC || {});
     if (rep.type === 'abort') return `<div class="report fail"><h4>✖ Run aborted ${close}</h4><div>The reagents were lost.</div></div>`;
     // result
     const r = CC.RECIPE[rep.rid];
-    const overall = rep.y * rep.extent;
+    const overall = rep.y;
     const fx = rep.factors.map((f) => {
       const cls = f.f >= 0.95 ? 'c-good' : f.f >= 0.5 ? 'c-warn' : 'c-bad';
-      return `<span class="k">${f.k}</span><span class="v ${cls}">${f.sto ? CC.pct(f.f) : '×' + f.f.toFixed(2)}</span><span>${esc(f.msg)}</span>`;
+      const v = f.info ? 'ℹ' : f.pct ? CC.pct(f.f) : f.rate ? 'k×' + f.f.toFixed(2) : '×' + f.f.toFixed(2);
+      return `<span class="k">${f.k}</span><span class="v ${f.info ? '' : cls}">${v}</span><span>${esc(f.msg)}</span>`;
     }).join('');
     const out = rep.out.length ? rep.out.map((o) => `<b>${qty(o.amt)} mol</b> ${esc(name(o.id))}`).join(', ') : 'nothing usable';
     return `<div class="report ${rep.success ? 'ok' : 'fail'}">
-      <h4>${rep.fatal ? '💥' : rep.success ? '✅' : '⚠️'} ${CC.pct(overall)} yield ${close}</h4>
+      <h4>${rep.fatal ? '💥' : rep.success ? '✅' : '⚠️'} ${CC.pct(overall)} isolated yield ${close}</h4>${rep.fatal ? `<div class="c-bad">${esc(rep.fatal)}</div>` : ''}
       <div>Made ${out}.${rep.rp ? ` <span class="c-rp">+${CC.fmt(rep.rp)} RP</span>` : ''}</div>
       <div class="fx">${fx}</div>
       ${rep.first ? '<div class="learn">📗 <b>New procedure recorded in your notebook!</b> You can now load it with one click.</div>' : ''}
-      ${rep.success ? `<div class="learn">💡 ${esc(r.learn)}</div>` : '<div class="note">Below 30% overall yield the run doesn\'t count towards mastery. Check the factors above and your notebook hint.</div>'}
+      ${rep.success ? `<div class="learn">💡 ${esc(r.learn)}</div>` : '<div class="note">Below 30% yield the run doesn\'t count towards mastery. Check the factors above and your notebook hint.</div>'}
     </div>`;
   }
 
@@ -378,7 +382,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
           <span class="k">Solvent</span><span>${r.solvents.map((s) => esc(s === 'none' ? 'none (neat)' : name(s))).join(' or ')}</span>
           <span class="k">Additive</span><span>${esc(sop)}</span>
           <span class="k">Atmosphere</span><span>${r.atm ? G.ATMS[r.atm].name : 'any'}</span>
-          <span class="k">Temperature</span><span>${tempText(r)}${r.exo ? ` <span class="tag warn">exothermic</span>` : ''}${r.strict ? ` <span class="tag bad">strict</span>` : ''}</span>
+          <span class="k">Best temp.</span><span>${tempText(r)}${r.exo ? ` <span class="tag warn">exothermic</span>` : ''}${r.strict ? ` <span class="tag bad">strict</span>` : ''}</span>
           <span class="k">Products</span><span>${Object.entries(r.products).map(([id, n]) => `${n > 1 ? n + ' ' : ''}${esc(name(id))}`).join(' + ')}</span>
         </div><button class="btn sm primary" data-act="load" data-id="${r.id}">Load into flask</button>`
         : `<button class="btn sm" data-act="reveal" data-id="${r.id}" data-rp="${G.revealCost(r)}">🔎 Look up full procedure (${CC.fmt(G.revealCost(r))} RP)</button>`;
@@ -417,7 +421,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
   function thermoSvg() {
     const ticks = [0, 50, 100, 150, 200].map((t) => `<line x1="30" x2="35" y1="${TY(t)}" y2="${TY(t)}" stroke="#55627d"/><text x="37" y="${TY(t) + 3}">${t}</text>`).join('');
     return `<svg class="thermo" viewBox="0 0 54 240" aria-label="Thermometer">
-      <rect id="lab-band" x="12" y="0" width="18" height="0" rx="3" visibility="hidden"/>
       <rect class="tube" x="15" y="8" width="12" height="206" rx="6"/>
       <rect id="lab-merc" x="18" y="200" width="6" height="20" rx="3"/>
       <circle class="bulb" cx="21" cy="222" r="11"/>
@@ -434,7 +437,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     if (b.run) {
       const r = CC.RECIPE[b.run.rid];
       const prod = CC.ITEMS[Object.keys(r.products)[0]].color || '#ffffff';
-      const t = b.run.t / b.run.dur;
+      const t = b.run.fatal ? Math.min(1, b.run.t / r.time) : Math.min(1, CC.Lab.yieldNow(b.run));
       return b.run.fatal ? CC.mix(base, '#5a3b1e', t) : CC.mix(base, prod, t);
     }
     const rep = b.report;
@@ -469,21 +472,54 @@ var CC = (globalThis.CC = globalThis.CC || {});
     merc.setAttribute('y', TY(T));
     merc.setAttribute('height', 214 - TY(T));
     $('#lab-setmark').setAttribute('transform', `translate(0 ${TY(b.set) - 4})`);
-    const band = $('#lab-band');
     if (r) {
-      band.setAttribute('visibility', 'visible');
-      band.setAttribute('y', TY(r.temp[1]));
-      band.setAttribute('height', Math.max(2, TY(r.temp[0]) - TY(r.temp[1])));
-      const inside = T >= r.temp[0] && T <= r.temp[1];
-      const w = $('#lab-win');
-      if (w) { w.textContent = CC.pct(run.tt ? run.score / run.tt : 1); w.parentNode.className = inside ? 'inwin' : 'outwin'; }
-      const tm = $('#lab-time');
-      if (tm) tm.textContent = Math.max(0, run.dur - run.t).toFixed(1) + 's';
-      $('#lab-prog').style.width = CC.pct(run.t / run.dur, 1);
-    } else {
-      band.setAttribute('visibility', 'hidden');
-      $('#lab-prog').style.width = b.report && b.report.type === 'result' ? '100%' : '0%';
-    }
+      const y = L.yieldNow(run), rate = L.rateNow(run, T);
+      $('#lab-time').textContent = run.t.toFixed(1) + 's';
+      $('#lab-y').textContent = CC.pct(y, 1);
+      $('#lab-rate').textContent = (rate >= 0 ? '+' : '') + (rate * 100).toFixed(2) + ' %/s';
+      projTimer -= 1;
+      if (projTimer <= 0) {
+        projTimer = 5;
+        const p10 = L.project(run, T, 10), p30 = L.project(run, T, 30);
+        $('#lab-proj').innerHTML = `Estimate at the current temperature: <b>${CC.pct(p10, 1)}</b> in 10 s · <b>${CC.pct(p30, 1)}</b> in 30 s · max ${CC.fmt(run.theo)} batch${run.theo === 1 ? '' : 'es'}${run.theo < 1 ? ' (limited by ' + esc(name(run.limiting)) + ')' : ''}`;
+      }
+      drawGraph(run.hist, run.t, y, rate, r);
+    } else if (b.report && b.report.hist) drawGraph(b.report.hist, b.report.hist[b.report.hist.length - 1][0], null, null, CC.RECIPE[b.report.rid]);
+  }
+
+  // ── yield-vs-time graph ──
+  const GW = 320, GH = 150, GL = 34, GB = 20, GT = 8, GR = 8;
+  let projTimer = 0;
+  function graphSvg() {
+    const yt = [0, 25, 50, 75, 100].map((v) => { const y = GT + (GH - GT - GB) * (1 - v / 100); return `<line x1="${GL}" x2="${GW - GR}" y1="${y}" y2="${y}" class="grid"/><text x="${GL - 4}" y="${y + 3}" text-anchor="end">${v}%</text>`; }).join('');
+    return `<svg class="graph" id="lab-graph" viewBox="0 0 ${GW} ${GH}" aria-label="Yield against time">
+      ${yt}<line x1="${GL}" x2="${GL}" y1="${GT}" y2="${GH - GB}" class="axis"/><line x1="${GL}" x2="${GW - GR}" y1="${GH - GB}" y2="${GH - GB}" class="axis"/>
+      <g id="g-xt"></g><polyline id="g-temp" class="tline"/><polyline id="g-line" class="yline"/><line id="g-tan" class="tan"/><circle id="g-dot" r="3" class="dot"/>
+      <text x="${GW - GR}" y="${GH - GB - 4}" text-anchor="end">time (s)</text><text x="${GL + 6}" y="${GT + 9}" class="lg-y">— yield</text><text x="${GL + 46}" y="${GT + 9}" class="lg-t">- - temperature</text><text x="${GL + 118}" y="${GT + 9}" class="lg-r">- - rate (tangent)</text></svg>`;
+  }
+  function drawGraph(hist, t, y, rate, r) {
+    const svg = $('#lab-graph');
+    if (!svg || !hist.length) return;
+    const tMax = Math.max(r.time * 1.5, t * 1.15);
+    const X = (s) => GL + (GW - GL - GR) * (s / tMax);
+    const Y = (v) => GT + (GH - GT - GB) * (1 - CC.clamp(v, 0, 1.05) / 1.05 * 1.05);
+    const tMaxT = Math.max(...hist.map((h) => h[2]), 50);
+    const YT = (T) => GT + (GH - GT - GB) * (1 - CC.clamp(T, 0, tMaxT) / tMaxT);
+    $('#g-line').setAttribute('points', hist.map((h) => `${X(h[0]).toFixed(1)},${Y(h[1]).toFixed(1)}`).join(' ') + (y != null ? ` ${X(t).toFixed(1)},${Y(y).toFixed(1)}` : ''));
+    $('#g-temp').setAttribute('points', hist.map((h) => `${X(h[0]).toFixed(1)},${YT(h[2]).toFixed(1)}`).join(' '));
+    const step = tMax > 120 ? 30 : tMax > 60 ? 15 : tMax > 24 ? 5 : 2;
+    let xt = '';
+    for (let s = step; s < tMax; s += step) xt += `<text x="${X(s)}" y="${GH - GB + 11}" text-anchor="middle">${s}</text>`;
+    $('#g-xt').innerHTML = xt;
+    const dot = $('#g-dot'), tan = $('#g-tan');
+    if (y != null) {
+      dot.setAttribute('cx', X(t)); dot.setAttribute('cy', Y(y));
+      const dt = tMax * 0.12;
+      tan.setAttribute('x1', X(t - dt)); tan.setAttribute('y1', Y(y - rate * dt));
+      tan.setAttribute('x2', X(t + dt)); tan.setAttribute('y2', Y(y + rate * dt));
+      tan.style.display = '';
+      dot.style.display = '';
+    } else { tan.style.display = 'none'; dot.style.display = 'none'; }
   }
 
   // ───────────────────────── MARKET ─────────────────────────
@@ -650,26 +686,72 @@ var CC = (globalThis.CC = globalThis.CC || {});
   function unlocksOf(cid) {
     return CC.TECH.filter((t) => t.course === cid).map((t) => t.name);
   }
-  function popCard() {
-    if (sub.popResult) {
-      const { ok, rp, q } = sub.popResult;
-      return `<section class="panel pop"><h3>⚡ Pop quiz</h3><div class="q"><div class="qt">${esc(q.q)}</div>
-        <div class="${ok ? 'c-good' : 'c-bad'}"><b>${ok ? `Correct! +${CC.fmt(rp)} RP` : `Not quite — the answer is: ${esc(q.o[q.a])}`}</b></div>
-        <div class="explain">${esc(q.e)}</div></div><button class="btn" data-act="popOk">OK</button></section>`;
-    }
-    if (S.pop) {
-      const c = CC.COURSE[S.pop.cid];
-      const q = c.quiz[S.pop.qi];
-      return `<section class="panel pop"><h3>⚡ Pop quiz <span class="spacer"></span><small>${c.icon} ${esc(c.name)}</small></h3>
-        <div class="q"><div class="qt">${esc(q.q)}</div><div class="opts">${S.pop.order.map((i) => `<button class="opt" data-act="popAns" data-o="${i}">${esc(q.o[i])}</button>`).join('')}</div></div></section>`;
-    }
-    if (G.popReady()) return `<section class="panel pop"><div class="row between"><div><b>⚡ Pop quiz ready!</b> <span class="note">Answer a question from a course you've passed for bonus RP.</span></div><button class="btn primary" data-act="popStart">Take it</button></div></section>`;
-    if (!Object.values(S.courses).some((c) => c.passed)) return '<section class="panel"><span class="note">⚡ Pass a course to unlock repeatable pop quizzes for bonus RP.</span></section>';
-    return '<section class="panel"><span class="note">⚡ Next pop quiz in <b data-live="pop"></b>.</span></section>';
+  function renderAcademy() {
+    const due = CC.School.dueCount();
+    const tabsH = `<div class="row" style="margin-bottom:12px">${[['school', '🧠 Chem School'], ['courses', '📚 Courses'], ['learning', `📈 Learning${due ? ' (' + due + ' due)' : ''}`]].map(([id, l]) => `<button class="btn ${sub.acTab === id ? 'on' : ''}" data-act="acTab" data-t="${id}">${l}</button>`).join('')}</div>`;
+    if (sub.course) return tabsH + renderCourse();
+    if (sub.acTab === 'school') return tabsH + renderSchool();
+    if (sub.acTab === 'learning') return tabsH + renderLearning();
+    return tabsH + renderCourses();
   }
 
-  function renderAcademy() {
-    if (sub.course) return renderCourse();
+  function renderSchool() {
+    const K = CC.School;
+    const ks = K.state().stats;
+    const rd = sub.round;
+    if (rd) {
+      if (rd.done && !sub.last) {
+        return `<section class="panel"><h3>🏁 Round complete — ${rd.correct}/${rd.qs.length}</h3>
+          <div class="c-rp" style="font-size:16px">+${CC.fmt(rd.earned + rd.bonus)} RP${rd.bonus ? ` (incl. ${CC.fmt(rd.bonus)} perfect-round bonus)` : ''}</div>
+          <div class="row" style="margin-top:12px"><button class="btn primary" data-act="school" data-cat="${rd.cat === 'due' ? 'mixed' : rd.cat}" ${rd.cat === 'due' ? 'data-due="1"' : ''}>Another round</button><button class="btn" data-act="schoolQuit">Back to Chem School</button></div></section>`;
+      }
+      const qi = sub.last ? rd.i - 1 : rd.i;
+      const q = rd.qs[qi];
+      const res = sub.last;
+      const cat = K.CATS[q.cat];
+      const opts = q.options.map((o, i) => {
+        let cls = '';
+        if (res) cls = i === q.answer ? 'right' : rd.answers[qi].choice === i ? 'wrong' : '';
+        return `<button class="opt ${cls}" data-act="schoolAns" data-o="${i}" ${res ? 'disabled' : ''}>${'ABCD'[i]}. ${esc(o)}</button>`;
+      }).join('');
+      const fb = res ? `<div class="report ${res.correct ? 'ok' : 'fail'}" style="margin-top:10px">
+          <h4>${res.correct ? '✅ Correct' : '❌ Not quite'} ${res.rp ? `<span class="c-rp">+${CC.fmt(res.rp)} RP</span>` : ''}</h4>
+          <div class="explain">${esc(res.explain)}</div>
+          <div class="note" style="margin-top:6px">${res.learnedNow ? '🌟 Learned for good!' : !res.correct ? `Dropped back to review ${res.box}/${K.LEARN_BOX} — it will come up again soon.` : res.tooSoon ? 'Answered too soon after the last review — no RP and no progress. Come back when it is due.' : `Review ${res.box}/${K.LEARN_BOX}` + (res.box < K.LEARN_BOX ? ` · next counting review in ${CC.time(res.next / 1000)}` : '')}</div>
+          <div class="row" style="margin-top:8px"><button class="btn primary" data-act="schoolNext">${res.last ? 'See results' : 'Next question →'}</button></div></div>` : '';
+      return `<section class="panel"><div class="row between"><h3 style="margin:0">${cat.icon} ${esc(cat.name)} · ${qi + 1}/${rd.qs.length}</h3><span class="row">${rd.streak >= 2 ? `<span class="tag warn">🔥 streak ${rd.streak}</span>` : ''}<span class="tag c-rp">+${CC.fmt(rd.earned)} RP</span><button class="btn sm" data-act="schoolQuit">Quit</button></span></div>
+        <div class="q" style="margin-top:12px"><div class="qt" style="font-size:16px">${esc(q.prompt)}</div>${q.formula ? `<div class="eq-wrap" style="font-size:20px;text-align:center">${esc(q.formula)}</div>` : ''}<div class="opts">${opts}</div></div>${fb}</section>`;
+    }
+    const due = K.dueCount();
+    const cards = ['mixed', 'fg', 'name', 'rxn', 'cond', 'acad'].map((c) => {
+      const C = K.CATS[c];
+      const ok = K.available(c);
+      const p = c === 'mixed' ? null : K.progress(c);
+      return `<button class="course" data-act="school" data-cat="${c}" ${ok ? '' : 'disabled'}><span class="ic">${C.icon}</span><span class="nm">${esc(C.name)}</span><span class="note">${esc(C.blurb)}</span>
+        ${p ? `<span class="row"><span class="tag good">${p.learned}/${p.total} learned</span>${p.due ? `<span class="tag warn">${p.due} due</span>` : ''}</span>` : ''}
+        ${!ok ? '<span class="note">🔒 ' + (c === 'acad' ? 'Read a course first.' : 'Research a reaction first.') + '</span>' : ''}</button>`;
+    }).join('');
+    return `<div class="stack"><section class="panel"><h3>🧠 Chem School <span class="spacer"></span><small>${ks.rounds} rounds · ${ks.correct}/${ks.answered} correct · best streak ${ks.bestStreak}</small></h3>
+      <div class="note" style="margin-bottom:12px">Five-question rounds. Every correct answer pays RP: <b>double</b> the first time you get an item right, normal when its review is <b>due</b>, and <b>nothing</b> if you answer again too soon. Streaks (from the 3rd answer in a row) and perfect rounds pay a bonus. An item is <b>learned</b> after ${K.LEARN_BOX} counting reviews, spaced from 10 minutes up to 2 weeks apart.</div>
+      ${due ? `<div class="row" style="margin-bottom:12px"><button class="btn primary" data-act="school" data-cat="mixed" data-due="1">🔁 Review ${due} due item${due > 1 ? 's' : ''}</button></div>` : ''}
+      <div class="cards">${cards}</div></section></div>`;
+  }
+
+  function renderLearning() {
+    const K = CC.School;
+    const f = sub.learnFilter;
+    const items = K.items().filter((it) => f === 'all' || it.status === f);
+    const order = { due: 0, learning: 1, new: 2, learned: 3 };
+    items.sort((a, b) => order[a.status] - order[b.status] || a.due - b.due);
+    const tag = { new: '', learning: 'tag', due: 'tag warn', learned: 'tag good' };
+    const rows = items.slice(0, 300).map((it) => `<tr><td>${K.CATS[it.cat].icon}</td><td>${esc(it.label)}</td><td style="min-width:90px"><div class="bar thin"><i style="width:${CC.pct(it.box / K.LEARN_BOX)}"></i></div></td><td><span class="${tag[it.status] || 'tag'}">${it.status}${it.status === 'learning' ? ' · ' + CC.time(it.due / 1000) : ''}</span></td><td class="mono">${it.ok}✓ ${it.bad}✗</td></tr>`).join('');
+    const due = K.dueCount();
+    return `<section class="panel"><h3>📈 Learning <span class="spacer"></span>${due ? `<button class="btn sm primary" data-act="school" data-cat="mixed" data-due="1">Review ${due} due</button>` : ''}</h3>
+      <div class="row" style="margin-bottom:10px">${['all', 'due', 'learning', 'new', 'learned'].map((x) => `<button class="btn sm ${f === x ? 'on' : ''}" data-act="learnFilter" data-f="${x}">${x}</button>`).join('')}</div>
+      ${rows ? `<div class="tscroll"><table class="t"><thead><tr><th></th><th>Item</th><th>Box</th><th>Status</th><th>Answers</th></tr></thead>${rows}</table></div>` : '<div class="empty">Nothing here yet.</div>'}</section>`;
+  }
+
+  function renderCourses() {
     const passedN = CC.COURSES.filter((c) => G.coursePassed(c.id)).length;
     const cards = CC.COURSES.map((c) => {
       const st = S.courses[c.id];
@@ -683,8 +765,8 @@ var CC = (globalThis.CC = globalThis.CC || {});
         <span class="row">${passed ? `<span class="tag good">✓ Passed · best ${CC.pct(st.best)}</span>` : open ? `<span class="tag">${read}/${c.lessons.length} lessons</span><span class="tag c-rp">+${CC.fmt(c.reward)} RP</span>` : `<span class="tag">🔒 Requires ${esc(CC.COURSE[c.req].name)}</span>`}</span>
       </button>`;
     }).join('');
-    return `<div class="stack">${popCard()}
-      <section class="panel"><h3>🎓 The Academy <span class="spacer"></span><small>${passedN}/${CC.COURSES.length} courses passed</small></h3>
+    return `<div class="stack">
+      <section class="panel"><h3>📚 Courses <span class="spacer"></span><small>${passedN}/${CC.COURSES.length} courses passed</small></h3>
       <div class="note" style="margin-bottom:12px">Read the lessons, then take the quiz. Score 75%+ to pass (100% earns a 50% bonus). Passing is required for many research projects.</div>
       <div class="cards">${cards}</div></section></div>`;
   }
