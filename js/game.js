@@ -127,8 +127,8 @@ var CC = (globalThis.CC = globalThis.CC || {});
   G.manualSpeed = () => 1 + 0.15 * G.lvl('techs');
   G.autoSpeed = () => (1 + 0.12 * G.lvl('maint')) * (G.flag('flow') ? 1.5 : 1) * (G.flag('ai') ? 1.5 : 1);
   G.autoQuality = () => 0.75 + (G.flag('process') ? 0.1 : 0) + (G.flag('ai') ? 0.1 : 0);
-  G.sellMult = () => (1 + 0.06 * G.lvl('sales')) * (1 + 0.1 * S.patents);
-  G.rpMult = () => 1 + 0.1 * S.patents;
+  G.sellMult = () => 1 + 0.06 * G.lvl('sales');
+  G.rpMult = () => 1;
   G.marketSize = () => MARKET_SIZE * G.scale() * (1 + 0.25 * G.lvl('marketing'));
   G.rpPerSec = () => 0.2 * G.lvl('postdoc') * G.rpMult();
 
@@ -553,22 +553,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     G.dirty();
   }
 
-  // ───────── prestige ─────────
-  G.patentGain = () => Math.floor(Math.sqrt(S.stats.runEarned / 1e6));
-  G.prestige = function () {
-    const gain = G.patentGain();
-    if (!G.flag('patent') || gain < 1) return false;
-    const keep = { settings: S.settings, puzzles: S.puzzles, school: S.school, courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
-    S = Object.assign(fresh(), keep);
-    S.stats.runEarned = 0;
-    S.stats.prestiges++;
-    G.recalc();
-    G.toast(`Filed ${gain} patent${gain > 1 ? 's' : ''}! Permanent +${gain * 10}% sale prices and RP.`, 'good');
-    G.dirty();
-    G.save();
-    return true;
-  };
-
   // ───────── main tick ─────────
   let goalTimer = 0;
   G.tick = function (dt, offline) {
@@ -607,9 +591,29 @@ var CC = (globalThis.CC = globalThis.CC || {});
     S.stats = Object.assign(fresh().stats, obj.stats || {});
     S.lab = Object.assign(fresh().lab, obj.lab || {});
     S.settings = Object.assign(defaultSettings(), obj.settings || {});
+    sanitize();
     if (S.lab.run && S.lab.run.xi == null) S.lab.run = null; // run from an older version
     G.recalc();
   }
+  // Drop references to items, recipes and tech that no longer exist (saves from older versions).
+  function sanitize() {
+    const item = (id) => !!CC.ITEMS[id];
+    for (const id in S.inv) if (!item(id) || !(S.inv[id] > 0)) delete S.inv[id];
+    for (const id in S.tech) if (!CC.TECH_BY_ID[id]) delete S.tech[id];
+    S.tech.t_basics = true;
+    for (const id in S.reactors) if (!CC.RECIPE[id]) delete S.reactors[id];
+    S.contracts = (S.contracts || []).filter((c) => item(c.item));
+    const L = S.lab;
+    L.slots = (L.slots || []).filter((x) => item(x.id));
+    if (L.solvent !== 'none' && !item(L.solvent)) L.solvent = 'none';
+    if (L.additive !== 'none' && !item(L.additive)) L.additive = 'none';
+    if (L.run && (!CC.RECIPE[L.run.rid] || L.run.xi == null)) L.run = null;
+    if (L.report && L.report.rid && !CC.RECIPE[L.report.rid]) L.report = null;
+    if (L.last) L.last.slots = (L.last.slots || []).filter((x) => item(x.id));
+    S.patents = 0;
+  }
+  G.sanitize = () => sanitize();
+
   // Returns a summary of offline earnings, or null.
   G.load = function () {
     let raw = null;

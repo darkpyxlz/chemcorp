@@ -11,12 +11,13 @@ var CC = (globalThis.CC = globalThis.CC || {});
   let S;
   let tab = 'lab';
   let dirty = true;
-  let pointerDown = false;
-  const sub = { pz: 'name', pname: null, pbuild: null, pmech: null, proute: null, tech: null, course: null, lesson: 0, quiz: false, answers: {}, result: null, buyAmt: 1, nbOpen: {}, acTab: 'school', round: null, last: null, learnFilter: 'all' };
+  let pointerDown = 0;
+  let forceRender = false;
+  const sub = { mapSel: 'alcohol1', mapEdge: null, mapHide: {}, mapMine: false, mapZoom: 0.75, pz: 'name', pname: null, pbuild: null, pmech: null, proute: null, tech: null, course: null, lesson: 0, quiz: false, answers: {}, result: null, buyAmt: 1, nbOpen: {}, acTab: 'school', round: null, last: null, learnFilter: 'all' };
 
   const TABS = [
     ['lab', '🧪 Lab'], ['market', '🏪 Market'], ['upgrades', '🛠️ Upgrades'], ['plant', '🏭 Plant'],
-    ['research', '🔬 Research'], ['academy', '🎓 Academy'], ['puzzles', '🧩 Puzzles'], ['stats', '📊 Statistics'], ['options', '⚙️ Options'],
+    ['research', '🔬 Research'], ['academy', '🎓 Academy'], ['puzzles', '🧩 Puzzles'], ['map', '🚇 Map'], ['stats', '📊 Statistics'], ['options', '⚙️ Options'],
   ];
 
   const name = (id) => CC.itemName(id);
@@ -48,14 +49,15 @@ var CC = (globalThis.CC = globalThis.CC || {});
       rd.readAsText(f);
     });
     document.body.appendChild(file);
-    document.addEventListener('pointerdown', (e) => { if (e.target.matches('input[type=range]')) pointerDown = true; });
-    document.addEventListener('pointerup', () => { pointerDown = false; });
+    document.addEventListener('pointerdown', (e) => { pointerDown = e.target.matches('input[type=range]') ? Date.now() : 0; });
+    for (const ev of ['pointerup', 'pointercancel', 'touchend', 'touchcancel']) document.addEventListener(ev, () => { pointerDown = 0; });
+    window.addEventListener('blur', () => { pointerDown = 0; });
     try { tab = localStorage.getItem('chemcorp-tab') || 'lab'; } catch (e) { /* ignore */ }
     if (!TABS.some((t) => t[0] === tab)) tab = 'lab';
   };
 
   const ACT = {
-    tab: (d) => { tab = d.tab; try { localStorage.setItem('chemcorp-tab', tab); } catch (e) { /* ignore */ } window.scrollTo(0, 0); },
+    tab: (d) => { tab = d.tab; forceRender = true; pointerDown = 0; if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); try { localStorage.setItem('chemcorp-tab', tab); } catch (e) { /* ignore */ } window.scrollTo(0, 0); },
     help: () => U.help(),
     closeModal: () => { $('#modal').hidden = true; },
     // lab
@@ -64,6 +66,13 @@ var CC = (globalThis.CC = globalThis.CC || {});
     eq: (d) => L.stepEq(d.id, +d.d),
     atm: (d) => L.setAtm(d.a),
     app: (d) => L.setApp(d.a),
+    // map
+    mst: (d) => { sub.mapSel = d.id; sub.mapEdge = null; },
+    medge: (d) => { sub.mapEdge = +d.i; },
+    mline: (d) => { sub.mapHide[d.l] = !sub.mapHide[d.l]; },
+    mmine: () => { sub.mapMine = !sub.mapMine; },
+    mzoom: (d) => { sub.mapZoom = CC.clamp(+(sub.mapZoom + +d.d).toFixed(2), 0.5, 1.8); },
+    mlab: (d) => { L.load(d.id); ACT.tab({ tab: 'lab' }); },
     // puzzles
     pz: (d) => { sub.pz = d.t; },
     pnameNew: (d) => { sub.pname = CC.Puzzles.newName(+d.l || 1); },
@@ -169,10 +178,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     rmax: (d) => G.buildMax(d.id),
     allOn: () => G.setAllReactors(true),
     allOff: () => G.setAllReactors(false),
-    prestige: () => {
-      const n = G.patentGain();
-      if (!S.settings.confirm || confirm(`File ${n} patent(s)?\n\nYou keep: Academy progress, reaction mastery, notebook, stats and patents.\nYou reset: money, RP, inventory, research, upgrades and reactors.`)) { G.prestige(); S = G.state(); }
-    },
   };
 
   function doImport(str) {
@@ -215,7 +220,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const t = e.target;
     if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
     S = G.state();
-    const n = parseInt(e.key, 10);
+    const n = e.key === '0' ? 10 : parseInt(e.key, 10);
     if (n >= 1 && n <= TABS.length) ACT.tab({ tab: TABS[n - 1][0] });
     else if (e.key === 'm' || e.key === 'M') ACT.maxAll();
     else if (e.key === 's' || e.key === 'S') ACT.save();
@@ -248,8 +253,13 @@ var CC = (globalThis.CC = globalThis.CC || {});
     badgeTimer += dt;
     if (dirty || badgeTimer > 1) { tabs(); goal(); badgeTimer = 0; }
     const active = document.activeElement;
-    const busy = pointerDown || (active && active.tagName === 'SELECT' && $('#view').contains(active)) || (active && active.tagName === 'TEXTAREA');
+    // Don't rebuild the page under a control the player is using (a slider drag, an open dropdown).
+    // A tab switch always renders.
+    const dragging = pointerDown && Date.now() - pointerDown < 4000;
+    const editing = active && /^(SELECT|TEXTAREA)$/.test(active.tagName) && active.offsetParent !== null && ($('#view').contains(active) || $('#modal').contains(active));
+    const busy = !forceRender && (dragging || editing);
     if (dirty && !busy) {
+      forceRender = false;
       render();
       dirty = false;
     }
@@ -263,8 +273,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const mr = G.rates.money, rr = G.rates.rp;
     $('#h-mrate').textContent = mr > 0.005 ? `You are earning ${CC.money(mr)} per second.` : '\u00a0';
     $('#h-rrate').textContent = rr > 0.005 ? ` (+${CC.fmt(rr)}/s)` : '';
-    $('#h-patents-wrap').hidden = !S.patents;
-    $('#h-patents').textContent = S.patents;
   }
 
   function tabs() {
@@ -288,8 +296,21 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const view = $('#view');
     const scroll = {};
     view.querySelectorAll('[data-keep-scroll]').forEach((el) => { scroll[el.dataset.keepScroll] = [el.scrollTop, el.scrollLeft]; });
-    const fn = { lab: renderLab, market: renderMarket, upgrades: renderUpgrades, plant: renderPlant, research: renderResearch, academy: renderAcademy, puzzles: renderPuzzles, stats: renderStats, options: renderOptions }[tab];
-    view.innerHTML = fn();
+    const fn = { lab: renderLab, market: renderMarket, upgrades: renderUpgrades, plant: renderPlant, research: renderResearch, academy: renderAcademy, puzzles: renderPuzzles, map: renderMap, stats: renderStats, options: renderOptions }[tab];
+    try {
+      view.innerHTML = fn();
+    } catch (e) {
+      console.error(e);
+      // Bad state from an older save: clear the bench and try once more.
+      if (tab === 'lab' && !render.retried) {
+        render.retried = true;
+        S.lab.slots = []; S.lab.report = null; S.lab.run = null;
+        render();
+        render.retried = false;
+        return;
+      }
+      view.innerHTML = `<section class="panel"><h3>⚠️ Something went wrong drawing this tab</h3><p class="note">${esc(e.message)}</p><button class="btn" data-act="tab" data-tab="lab">Back to the Lab</button></section>`;
+    }
     view.querySelectorAll('[data-keep-scroll]').forEach((el) => {
       const s = scroll[el.dataset.keepScroll];
       if (s) { el.scrollTop = s[0]; el.scrollLeft = s[1]; }
@@ -976,7 +997,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const st = S.stats;
     const rows = [
       ['Lifetime earnings', CC.money(st.lifetimeEarned)],
-      ['Earned since last patent filing', CC.money(st.runEarned)],
       ['Manual reactions run', CC.fmt(st.manualRuns)],
       ['Failed / non-reactions', CC.fmt(st.failed)],
       ['Automated batches', CC.fmt(st.autoBatches)],
@@ -985,15 +1005,9 @@ var CC = (globalThis.CC = globalThis.CC || {});
       ['Contracts delivered', CC.fmt(st.contracts)],
       ['Quiz answers correct', CC.fmt(st.quizCorrect)],
       ['Play time', CC.time(st.playTime)],
-      ['Patents filed', CC.fmt(S.patents)],
     ].map(([k, v]) => `<tr><td>${k}</td><td class="mono">${v}</td></tr>`).join('');
     const goals = CC.GOALS.map((g) => `<tr><td>${S.goals[g.id] ? '✅' : '⬜'}</td><td>${esc(g.text)}</td></tr>`).join('');
     const mastery = CC.RECIPES.filter((r) => G.runs(r.id) > 0).map((r) => `<tr><td>${esc(r.name)}</td><td>${stars(G.mastery(r.id))}</td><td class="mono">${Math.floor(G.runs(r.id))}</td><td class="mono">${CC.pct(S.recipes[r.id].best || 0)}</td></tr>`).join('');
-    const gain = G.patentGain();
-    const prestige = G.flag('patent')
-      ? `<p>File patents on your processes and start a new company with what you've learned. You'll gain <b class="c-warn">${gain}</b> patent(s) (√ of earnings since your last filing ÷ $1M). Each patent permanently gives +10% sale prices and +10% RP.</p>
-         <button class="btn primary" data-act="prestige" ${gain >= 1 ? '' : 'disabled'}>📜 File ${gain} patent(s) & restart</button>`
-      : '<p class="note">Research the <b>Patent Office</b> to unlock prestige: restart with permanent bonuses, keeping your Academy progress and reaction mastery.</p>';
     return `<div class="grid two">
       <div class="stack">
         <section class="panel"><h3>📊 Statistics</h3><table class="t">${rows}</table></section>
@@ -1002,8 +1016,122 @@ var CC = (globalThis.CC = globalThis.CC || {});
       </div>
       <div class="stack">
         <section class="panel"><h3>🎯 Objectives</h3><table class="t">${goals}</table></section>
-        <section class="panel"><h3>📜 Patents (prestige)</h3>${prestige}</section>
       </div></div>`;
+  }
+
+  // ───────────────────────── SYNTHESIS MAP (metro style) ─────────────────────────
+  const MU = 84, MV = 62, MPAD = 70;
+  function metroGeom() {
+    const { ST } = CC.METRO;
+    const xs = Object.values(ST).map((s) => s.x), ys = Object.values(ST).map((s) => s.y);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys);
+    const P = (id) => [MPAD + 110 + (ST[id].x - x0) * MU, MPAD + (ST[id].y - y0) * MV];
+    return { P, W: MPAD * 2 + 300 + (Math.max(...xs) - x0) * MU, H: MPAD * 2 + 20 + (Math.max(...ys) - y0) * MV };
+  }
+  // Octilinear routing: each edge bends once (45° then straight, or straight then 45°).
+  // Pick the bend that keeps the line away from other stations.
+  let routeCache = null;
+  function metroRoutes() {
+    if (routeCache) return routeCache;
+    const { ST, E } = CC.METRO;
+    const { P } = metroGeom();
+    const pts = Object.keys(ST).map((id) => [id, P(id)]);
+    const segDist = (p, a, b) => {
+      const vx = b[0] - a[0], vy = b[1] - a[1], L2 = vx * vx + vy * vy || 1;
+      const t = CC.clamp(((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / L2, 0, 1);
+      return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy);
+    };
+    routeCache = E.map(([a, b]) => {
+      const A = P(a), B = P(b);
+      const dx = B[0] - A[0], dy = B[1] - A[1];
+      const d = Math.min(Math.abs(dx) / MU, Math.abs(dy) / MV);
+      const diagFirst = [A[0] + Math.sign(dx) * d * MU, A[1] + Math.sign(dy) * d * MV];
+      const straightFirst = [B[0] - Math.sign(dx) * d * MU, B[1] - Math.sign(dy) * d * MV];
+      const score = (M) => pts.reduce((n, [id, p]) => (id === a || id === b ? n : n + (Math.min(segDist(p, A, M), segDist(p, M, B)) < 18 ? 1 : 0)), 0);
+      return score(straightFirst) < score(diagFirst) ? straightFirst : diagFirst;
+    });
+    return routeCache;
+  }
+  function renderMap() {
+    const { LINES, ST, E } = CC.METRO;
+    const { P, W, H } = metroGeom();
+    const deg = {};
+    E.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
+    const pairs = {};
+    E.forEach(([a, b], i) => { const k = [a, b].sort().join('|'); (pairs[k] = pairs[k] || []).push(i); });
+    const mineOk = (rx) => rx && G.researched(rx);
+    const sel = sub.mapSel, selEdge = sub.mapEdge;
+    const route = metroRoutes();
+    let lines = '', marks = '';
+    E.forEach(([a, b, l, cond, rx], i) => {
+      if (sub.mapHide[l]) return;
+      const A = P(a), B = P(b);
+      const k = [a, b].sort().join('|');
+      const grp = pairs[k], gi = grp.indexOf(i);
+      const off = (gi - (grp.length - 1) / 2) * 7 * (a < b ? 1 : -1);
+      const dx = B[0] - A[0], dy = B[1] - A[1];
+      const M = route[i];
+      const L0 = Math.hypot(dx, dy) || 1;
+      const nx = (-dy / L0) * off, ny = (dx / L0) * off;
+      const pts = [A, M, B].map((p) => [p[0] + nx, p[1] + ny]);
+      const dim = (sub.mapMine && !mineOk(rx)) || (sel && sub.mapEdge == null && a !== sel && b !== sel && sub.mapFocus);
+      const hl = selEdge === i || (selEdge == null && (a === sel || b === sel));
+      const path = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)} L${pts[1][0].toFixed(1)},${pts[1][1].toFixed(1)} L${pts[2][0].toFixed(1)},${pts[2][1].toFixed(1)}`;
+      lines += `<path d="${path}" class="mline ${hl ? 'hl' : ''} ${dim ? 'dim' : ''}" stroke="${LINES[l].color}"/>`;
+      lines += `<path d="${path}" class="mhit" data-act="medge" data-i="${i}"><title>${esc(LINES[l].name)}: ${esc(ST[a].name)} → ${esc(ST[b].name)} — ${esc(cond)}</title></path>`;
+      // direction chevron on the longer segment
+      const segs = [[pts[0], pts[1]], [pts[1], pts[2]]].sort((u, v) => Math.hypot(v[1][0] - v[0][0], v[1][1] - v[0][1]) - Math.hypot(u[1][0] - u[0][0], u[1][1] - u[0][1]));
+      const [s0, s1] = segs[0];
+      const ang = (Math.atan2(s1[1] - s0[1], s1[0] - s0[0]) * 180) / Math.PI;
+      const cx = (s0[0] + s1[0]) / 2, cy = (s0[1] + s1[1]) / 2;
+      if (Math.hypot(s1[0] - s0[0], s1[1] - s0[1]) > 30) marks += `<path d="M-3.5,-3 L2.5,0 L-3.5,3" class="chev ${dim ? 'dim' : ''}" transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) rotate(${ang.toFixed(0)})"/>`;
+    });
+    let stations = '';
+    const LP = { n: [0, -16, 'middle'], s: [0, 24, 'middle'], e: [14, 5, 'start'], w: [-14, 5, 'end'], ne: [10, -12, 'start'], nw: [-10, -12, 'end'], se: [10, 20, 'start'], sw: [-10, 20, 'end'] };
+    for (const id in ST) {
+      const st = ST[id], [x, y] = P(id);
+      const big = (deg[id] || 0) >= 6;
+      const [lx, ly, anchor] = LP[st.lp || 'n'];
+      stations += `<g class="mst ${id === sel ? 'sel' : ''}" data-act="mst" data-id="${id}"><title>${esc(st.name)} (${esc(st.f)})</title>
+        ${big ? `<rect x="${x - 11}" y="${y - 11}" width="22" height="22" rx="11" class="mdot big"/>` : `<circle cx="${x}" cy="${y}" r="7.5" class="mdot"/>`}
+        <text x="${x + lx}" y="${y + ly}" text-anchor="${anchor}" class="mlbl">${esc(st.name)}</text>
+        <circle cx="${x}" cy="${y}" r="15" class="mhitst"/></g>`;
+    }
+    const districts = `<text x="${P('arene')[0] - 40}" y="${P('arene')[1] - 50}" class="mdist">AROMATIC DISTRICT</text>`;
+    const legend = Object.entries(LINES).map(([k, l]) => `<button class="btn sm legend ${sub.mapHide[k] ? '' : 'on-l'}" data-act="mline" data-l="${k}" title="Show / hide this line"><i style="background:${l.color}"></i>${esc(l.name)}</button>`).join('');
+    const svg = `<svg class="metro" viewBox="0 0 ${W} ${H}" style="width:${Math.round(W * sub.mapZoom)}px">${districts}${lines}${marks}${stations}</svg>`;
+
+    // info panel
+    let info = '';
+    const rxLink = (rx) => {
+      if (!rx || !CC.RECIPE[rx]) return '';
+      const r = CC.RECIPE[rx];
+      if (!G.researched(r)) return `<span class="tag">🔒 ${esc(CC.TECH_BY_ID[r.tech].name)}</span>`;
+      return G.known(rx) ? `<button class="btn sm" data-act="mlab" data-id="${rx}" title="Load this procedure in the Lab">▶ ${esc(r.name)}</button>` : `<span class="tag good">🧪 in your Lab: ${esc(r.name)}</span>`;
+    };
+    const row = (i, dir) => {
+      const [a, b, l, cond, rx] = E[i];
+      const other = dir === 'out' ? b : a;
+      return `<li class="${sub.mapEdge === i ? 'hl' : ''}"><span class="ldot" style="background:${LINES[l].color}"></span><a href="#" data-act="mst" data-id="${other}">${dir === 'out' ? '→' : '←'} ${esc(ST[other].name)}</a><div class="note">${esc(cond)}</div>${rxLink(rx)}</li>`;
+    };
+    if (sub.mapEdge != null) {
+      const [a, b, l, cond, rx] = E[sub.mapEdge];
+      info = `<h3><span class="ldot" style="background:${LINES[l].color}"></span>${esc(LINES[l].name)} line</h3>
+        <div class="routehop"><a href="#" data-act="mst" data-id="${a}">${esc(ST[a].name)}</a> → <a href="#" data-act="mst" data-id="${b}">${esc(ST[b].name)}</a></div>
+        <p>${esc(cond)}</p><div class="note">e.g. ${esc(ST[a].ex)} → ${esc(ST[b].ex)}</div><div style="margin-top:8px">${rxLink(rx)}</div>`;
+    } else if (sel) {
+      const st = ST[sel];
+      const outs = E.map((e, i) => (e[0] === sel ? i : -1)).filter((i) => i >= 0);
+      const ins = E.map((e, i) => (e[1] === sel ? i : -1)).filter((i) => i >= 0);
+      info = `<h3>${esc(st.name)}</h3><div class="mformula">${esc(st.f)}</div><div class="note">Example: ${esc(st.ex)}</div>
+        <div class="lbl2" style="margin-top:10px">Turns into (${outs.length})</div><ul class="mlist">${outs.map((i) => row(i, 'out')).join('') || '<li class="note">— end of the line —</li>'}</ul>
+        <div class="lbl2" style="margin-top:10px">Made from (${ins.length})</div><ul class="mlist">${ins.map((i) => row(i, 'in')).join('') || '<li class="note">— a starting material —</li>'}</ul>`;
+    }
+    return `<section class="panel"><h3>🚇 Synthesis map <span class="spacer"></span><small>${Object.keys(ST).length} compound types · ${E.length} reactions</small></h3>
+      <div class="note" style="margin-bottom:8px">Stations are compound types; each coloured line is a type of reaction, and the chevrons point the way it goes. Click a station or a line to see reagents and conditions. Reactions your lab can run link straight to the Lab.</div>
+      <div class="row" style="margin-bottom:8px">${legend}</div>
+      <div class="row" style="margin-bottom:8px"><button class="btn sm ${sub.mapMine ? 'on' : ''}" data-act="mmine">🧪 Highlight what my lab can do</button><button class="btn sm" data-act="mzoom" data-d="-0.15">−</button><span class="note">zoom ${Math.round(sub.mapZoom * 100)}%</span><button class="btn sm" data-act="mzoom" data-d="0.15">+</button></div>
+      <div class="maplayout"><div class="mapwrap" data-keep-scroll="metro">${svg}</div><aside class="mapinfo">${info}</aside></div></section>`;
   }
 
   // ───────────────────────── PUZZLES ─────────────────────────
@@ -1175,8 +1303,8 @@ var CC = (globalThis.CC = globalThis.CC || {});
       </section>
       <section class="panel"><h3>⚙️ Gameplay</h3>
         <div class="field"><label>Offline progress (plant keeps running, up to 8 h)</label><div class="seg">${opt('offline', true, 'On')}${opt('offline', false, 'Off')}</div></div>
-        <div class="field"><label>Extra confirmations (prestige, hard reset)</label><div class="seg">${opt('confirm', true, 'On')}${opt('confirm', false, 'Off')}</div></div>
-        <div class="field"><label>Hotkeys</label><div class="note">1–9 switch tabs · M = max all reactors · S = save · Space = start / work up in the Lab</div></div>
+        <div class="field"><label>Extra confirmation for hard reset</label><div class="seg">${opt('confirm', true, 'On')}${opt('confirm', false, 'Off')}</div></div>
+        <div class="field"><label>Hotkeys</label><div class="note">1–9, 0 switch tabs · M = max all reactors · S = save · Space = start / work up in the Lab</div></div>
         <button class="btn" data-act="help">How to play</button>
       </section>
     </div>`;

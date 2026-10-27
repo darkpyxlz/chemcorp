@@ -356,3 +356,39 @@ svg.mech { width: 100%; height: auto; display: block; max-height: 340px; }
 .pathmol { padding: 2px 8px; border: 1px solid var(--ink); border-radius: 3px; }
 .step-arrow small { color: var(--muted); }
 .routeopts { max-width: 620px; margin: 0 auto; }
+
+/* ── metro map ── */
+.maplayout { display: grid; grid-template-columns: 1fr 330px; gap: 12px; align-items: start; }
+@media (max-width: 1000px) { .maplayout { grid-template-columns: 1fr; } }
+.mapwrap { overflow: auto; max-height: 78vh; border: 1px solid var(--ink); border-radius: var(--radius); background: #fbfbf8; }
+:root[data-theme='dark'] .mapwrap { background: #141414; }
+svg.metro { display: block; height: auto; min-width: 0; }
+.metro .mline { fill: none; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.metro .mline.hl { stroke-width: 9; }
+.metro .mline.dim, .metro .chev.dim { opacity: 0.15; }
+.metro .mhit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.metro .chev { fill: #fff; stroke: none; pointer-events: none; }
+.metro .mst { cursor: pointer; }
+.metro .mdot { fill: #fff; stroke: #111; stroke-width: 3; }
+.metro .mdot.big { stroke-width: 3.5; }
+.metro .mst:hover .mdot, .metro .mst.sel .mdot { fill: #ffd300; }
+.metro .mlbl { font: 700 12px var(--mono); fill: #111; paint-order: stroke; stroke: #fbfbf8; stroke-width: 4px; }
+:root[data-theme='dark'] .metro .mlbl { fill: #eee; stroke: #141414; }
+:root[data-theme='dark'] .metro .mdot { fill: #222; stroke: #eee; }
+.metro .mst.sel .mlbl { text-decoration: underline; }
+.metro .mdist { font: 700 13px var(--mono); fill: var(--muted); letter-spacing: 3px; }
+.mapinfo { border: 1px solid var(--ink); border-radius: var(--radius); padding: 10px; max-height: 78vh; overflow: auto; }
+.mapinfo h3 { border: 0; }
+.mformula { font-size: 18px; margin: 2px 0 4px; }
+.mlist { list-style: none; padding: 0; margin: 4px 0; display: flex; flex-direction: column; gap: 6px; }
+.mlist li { padding: 5px 6px; border: 1px solid var(--line); border-radius: var(--radius); }
+.mlist li.hl { border-color: var(--ink); }
+.mlist a { color: var(--text); font-weight: 700; text-decoration: none; }
+.mlist a:hover { text-decoration: underline; }
+.ldot { display: inline-block; width: 18px; height: 6px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+.legend i { display: inline-block; width: 16px; height: 6px; border-radius: 3px; }
+.legend:not(.on-l) { opacity: 0.45; text-decoration: line-through; }
+.routehop { font-weight: 700; margin: 4px 0 6px; }
+.routehop a { color: var(--text); }
+.metro .mhitst { fill: transparent; }
+.metro .mlbl { pointer-events: all; }

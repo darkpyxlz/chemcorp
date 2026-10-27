@@ -101,9 +101,7 @@ CC.TECH = [
     desc: 'The award-winning three-step catalytic route to ibuprofen.',
     fx: { recipes: ['ibap', 'ibpe', 'ibuprofen'] } },
 
-  { id: 't_patent', name: 'Patent Office', icon: '📜', pos: [8, 2], rp: 12000, money: 1000000, req: ['t_ibu'],
-    desc: 'File patents on your processes. Unlocks prestige: restart with permanent bonuses.',
-    fx: { flag: 'patent' } },
+
 
   // ───────── expansion ─────────
   { id: 't_esters2', name: 'Fragrance Esters', icon: '🌸', pos: [2, 5], rp: 30, money: 300, req: ['t_fischer'], course: 'carbonyl',

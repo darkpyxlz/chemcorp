@@ -25,6 +25,5 @@ CC.GOALS = (function () {
     { id: 'g_1m', text: 'Earn $1M in total.', check: (S) => S.stats.lifetimeEarned >= 1e6, reward: { rp: 3000 } },
     { id: 'g_5cb', text: 'Make 5CB liquid crystal with a Suzuki coupling.', check: (S) => runs(S, 'lc5cb') >= 1, reward: { rp: 5000 } },
     { id: 'g_all', text: 'Pass every Academy course.', check: (S) => passed(S) >= CC.COURSES.length, reward: { rp: 5000 } },
-    { id: 'g_patent', text: 'File your first patents (prestige).', check: (S) => S.patents > 0, reward: { rp: 1000 } },
   ];
 })();

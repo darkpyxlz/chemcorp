@@ -13,7 +13,7 @@ const ctx = {
 };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/data/mechanisms.js', 'js/data/routes.js', 'js/game.js', 'js/lab.js', 'js/school.js', 'js/molecule.js', 'js/puzzles.js']) {
+for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/data/mechanisms.js', 'js/data/routes.js', 'js/data/metro.js', 'js/game.js', 'js/lab.js', 'js/school.js', 'js/molecule.js', 'js/puzzles.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 }
 const CC = ctx.CC;
@@ -344,6 +344,27 @@ test('apparatus picks between distillation and reflux products', () => {
   G.recalc();
   assert.strictEqual(CC.Lab.match(['etoh', 'k2cr2o7'], 'distil').id, 'ethanal');
   assert.strictEqual(CC.Lab.match(['etoh', 'k2cr2o7'], 'reflux').id, 'acoh_ox');
+});
+
+test('metro map: stations, lines and linked recipes exist; no duplicate positions', () => {
+  const { ST, LINES, E } = CC.METRO;
+  const seen = new Set();
+  for (const id in ST) { const k = ST[id].x + ',' + ST[id].y; assert(!seen.has(k), 'overlap ' + id); seen.add(k); }
+  for (const [a, b, l, cond, rx] of E) {
+    assert(ST[a] && ST[b] && LINES[l] && cond, `${a}→${b}`);
+    if (rx) assert(CC.RECIPE[rx], 'recipe ' + rx);
+  }
+  const used = new Set(E.flatMap((e) => [e[0], e[1]]));
+  for (const id in ST) assert(used.has(id), 'unconnected station ' + id);
+  assert(Object.keys(ST).length >= 50);
+});
+test('old saves with removed items are cleaned on load', () => {
+  G.newGame();
+  const obj = JSON.parse(G.serialize());
+  obj.inv.nacl = 3; obj.lab.slots = [{ id: 'nacl', eq: 1 }]; obj.lab.report = { type: 'result', rid: 'neut' }; obj.tech.t_patent = true;
+  G.importSave(Buffer.from(unescape(encodeURIComponent(JSON.stringify(obj))), 'binary').toString('base64'));
+  const st = S();
+  assert(!st.inv.nacl && !st.lab.slots.length && !st.lab.report && !st.tech.t_patent);
 });
 
 console.log(failures ? `\n${failures} test(s) failed` : '\nAll tests passed');
