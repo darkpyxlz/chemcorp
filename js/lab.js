@@ -238,7 +238,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     b.report = null;
     b.run = {
       rid: r.id, t: 0, xi: 0, lost: 0, theo, limiting, excess, a, kfac, fatal, factors, scale: req.sc,
-      dean: !!(r.eqm && G.flag('deanstark')), extraWater: r.eqm && sv === 's_water' ? 3 : 0,
+      dean: !!(r.eqm && !r.noDean && G.flag('deanstark')), extraWater: r.eqm && sv === 's_water' ? 3 : 0,
       hist: [[0, 0, b.T]], histT: 0, sumT: 0, peak: 0, r0: null,
     };
     G.dirty();

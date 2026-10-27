@@ -16,7 +16,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
 
   const TABS = [
     ['lab', '🧪 Lab'], ['market', '🏪 Market'], ['upgrades', '🛠️ Upgrades'], ['plant', '🏭 Plant'],
-    ['research', '🔬 Research'], ['academy', '🎓 Academy'], ['stats', '📊 Stats'],
+    ['research', '🔬 Research'], ['academy', '🎓 Academy'], ['stats', '📊 Statistics'], ['options', '⚙️ Options'],
   ];
 
   const name = (id) => CC.itemName(id);
@@ -37,6 +37,17 @@ var CC = (globalThis.CC = globalThis.CC || {});
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
     document.addEventListener('input', onInput);
+    document.addEventListener('keydown', onKey);
+    const file = document.createElement('input');
+    file.type = 'file'; file.id = 'import-file'; file.accept = '.txt,text/plain'; file.hidden = true;
+    file.addEventListener('change', () => {
+      const f = file.files[0];
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = () => { doImport(String(rd.result)); file.value = ''; };
+      rd.readAsText(f);
+    });
+    document.body.appendChild(file);
     document.addEventListener('pointerdown', (e) => { if (e.target.matches('input[type=range]')) pointerDown = true; });
     document.addEventListener('pointerup', () => { pointerDown = false; });
     try { tab = localStorage.getItem('chemcorp-tab') || 'lab'; } catch (e) { /* ignore */ }
@@ -93,18 +104,56 @@ var CC = (globalThis.CC = globalThis.CC || {});
     schoolNext: () => { sub.last = null; },
     schoolQuit: () => { sub.round = null; sub.last = null; },
     learnFilter: (d) => { sub.learnFilter = d.f; },
-    // stats
+    // options
     save: () => { G.save(); U.toast('Game saved.', 'good'); },
-    exportSave: () => { const t = $('#save-text'); t.value = G.exportSave(); t.select(); U.toast('Save copied into the box below — keep it somewhere safe.'); },
-    importSave: () => {
-      try { G.importSave($('#save-text').value); S = G.state(); U.toast('Save imported!', 'good'); } catch (e) { U.toast('That doesn\'t look like a valid save.', 'bad'); }
+    exportCopy: () => {
+      const str = G.exportSave();
+      const fallback = () => U.modal(`<h3>Export save</h3><p class="note">Copy this text and keep it somewhere safe.</p><textarea id="export-text" readonly rows="8">${esc(str)}</textarea><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" data-act="closeModal">Close</button></div>`);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(str).then(() => U.toast('Save copied to clipboard!', 'good'), fallback);
+      else fallback();
     },
-    reset: () => { if (confirm('Erase ALL progress and start over? This cannot be undone.')) { G.reset(); S = G.state(); } },
+    exportFile: () => {
+      const blob = new Blob([G.exportSave()], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `ChemCorp save ${new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '-')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      U.toast('Save file downloaded.', 'good');
+    },
+    importOpen: () => U.modal(`<h3>Import save</h3><p class="note">Paste an exported save below. This replaces your current progress.</p><textarea id="import-text" rows="8" placeholder="Paste your save here"></textarea>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn" data-act="closeModal">Cancel</button><button class="btn primary" data-act="importDo">Import</button></div>`),
+    importDo: () => doImport($('#import-text').value),
+    importFile: () => $('#import-file').click(),
+    reset: () => {
+      if (!confirm('Erase ALL progress and start over? This cannot be undone.')) return;
+      if (S.settings.confirm && prompt('Type RESET to confirm.') !== 'RESET') return;
+      G.reset(); S = G.state(); U.toast('Progress erased.');
+    },
+    set: (d) => {
+      const st = S.settings;
+      const v = d.v === 'true' ? true : d.v === 'false' ? false : d.v;
+      st[d.k] = d.k === 'autosave' ? +v : v;
+    },
+    maxAll: () => { const n = G.maxAll(); U.toast(n ? `Built ${n} reactor${n > 1 ? 's' : ''}.` : 'Nothing affordable.', n ? 'good' : 'bad'); },
+    rmax: (d) => G.buildMax(d.id),
+    allOn: () => G.setAllReactors(true),
+    allOff: () => G.setAllReactors(false),
     prestige: () => {
       const n = G.patentGain();
-      if (confirm(`File ${n} patent(s)?\n\nYou keep: Academy progress, reaction mastery, notebook, stats and patents.\nYou reset: money, RP, inventory, research, upgrades and reactors.`)) { G.prestige(); S = G.state(); }
+      if (!S.settings.confirm || confirm(`File ${n} patent(s)?\n\nYou keep: Academy progress, reaction mastery, notebook, stats and patents.\nYou reset: money, RP, inventory, research, upgrades and reactors.`)) { G.prestige(); S = G.state(); }
     },
   };
+
+  function doImport(str) {
+    try {
+      G.importSave(str);
+      S = G.state();
+      $('#modal').hidden = true;
+      U.toast('Save imported!', 'good');
+    } catch (e) { U.toast('That doesn\'t look like a valid ChemCorp save.', 'bad'); }
+  }
 
   function openCourse(cid) {
     sub.course = cid;
@@ -133,8 +182,27 @@ var CC = (globalThis.CC = globalThis.CC || {});
     else if (k === 'loadProc' && t.value) L.load(t.value);
     dirty = true;
   }
+  function onKey(e) {
+    const t = e.target;
+    if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    S = G.state();
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= TABS.length) ACT.tab({ tab: TABS[n - 1][0] });
+    else if (e.key === 'm' || e.key === 'M') ACT.maxAll();
+    else if (e.key === 's' || e.key === 'S') ACT.save();
+    else if (e.key === ' ' && tab === 'lab') { e.preventDefault(); if (S.lab.run) L.workup(); else L.start(); }
+    else if (e.key === 'Escape') $('#modal').hidden = true;
+    else return;
+    dirty = true;
+  }
   function onInput(e) {
     const t = e.target;
+    if (t.dataset.input === 'autosave') {
+      S.settings.autosave = +t.value;
+      const l = $('#autosave-val');
+      if (l) l.textContent = t.value + 's';
+      return;
+    }
     if (t.dataset.input === 'temp') {
       L.setTemp(+t.value);
       const lbl = $('#lab-set');
@@ -146,6 +214,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   let badgeTimer = 0;
   U.frame = function (dt) {
     S = G.state();
+    applySettings();
     header();
     badgeTimer += dt;
     if (dirty || badgeTimer > 1) { tabs(); goal(); badgeTimer = 0; }
@@ -161,10 +230,10 @@ var CC = (globalThis.CC = globalThis.CC || {});
 
   function header() {
     $('#h-money').textContent = CC.money(S.money);
-    $('#h-rp').textContent = CC.fmt(S.rp) + ' RP';
+    $('#h-rp').textContent = CC.fmt(S.rp);
     const mr = G.rates.money, rr = G.rates.rp;
-    $('#h-mrate').textContent = mr > 0.005 ? `+${CC.money(mr)}/s` : '';
-    $('#h-rrate').textContent = rr > 0.005 ? `+${CC.fmt(rr)} RP/s` : '';
+    $('#h-mrate').textContent = mr > 0.005 ? `You are earning ${CC.money(mr)} per second.` : '\u00a0';
+    $('#h-rrate').textContent = rr > 0.005 ? ` (+${CC.fmt(rr)}/s)` : '';
     $('#h-patents-wrap').hidden = !S.patents;
     $('#h-patents').textContent = S.patents;
   }
@@ -190,7 +259,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const view = $('#view');
     const scroll = {};
     view.querySelectorAll('[data-keep-scroll]').forEach((el) => { scroll[el.dataset.keepScroll] = [el.scrollTop, el.scrollLeft]; });
-    const fn = { lab: renderLab, market: renderMarket, upgrades: renderUpgrades, plant: renderPlant, research: renderResearch, academy: renderAcademy, stats: renderStats }[tab];
+    const fn = { lab: renderLab, market: renderMarket, upgrades: renderUpgrades, plant: renderPlant, research: renderResearch, academy: renderAcademy, stats: renderStats, options: renderOptions }[tab];
     view.innerHTML = fn();
     view.querySelectorAll('[data-keep-scroll]').forEach((el) => {
       const s = scroll[el.dataset.keepScroll];
@@ -212,6 +281,8 @@ var CC = (globalThis.CC = globalThis.CC || {});
         case 'rxs': { const g = S.reactors[id]; el.innerHTML = g ? rxStatus(g) : ''; break; }
         case 'ct': { const c = S.contracts.find((x) => x.id === +id); el.textContent = c ? CC.time((c.expires - Date.now()) / 1000) : ''; break; }
         case 'rp': el.textContent = CC.fmt(S.rp); break;
+        case 'saved': el.textContent = G.lastSave ? CC.time((Date.now() - G.lastSave) / 1000) + ' ago' : 'not yet this session'; break;
+        case 'rxa': { const g = S.reactors[id]; el.textContent = g ? g.n : 0; break; }
       }
     });
     view.querySelectorAll('[data-cost],[data-rp],[data-inv]').forEach((el) => {
@@ -223,6 +294,55 @@ var CC = (globalThis.CC = globalThis.CC || {});
       el.disabled = !ok;
     });
   }
+
+  // ───────────────────────── settings & news ─────────────────────────
+  let appliedKey = '';
+  function applySettings() {
+    const st = S.settings;
+    const key = st.theme + st.notation + st.news;
+    if (key === appliedKey) return;
+    appliedKey = key;
+    document.documentElement.dataset.theme = st.theme;
+    CC.notation = st.notation;
+    $('#news').hidden = !st.news;
+    dirty = true;
+  }
+
+  const NEWS = [
+    'BREAKING: Local chemist adds water to acid, regrets it. Always add acid to water!',
+    'Benzene ring spotted chasing its own tail — Kekulé "not surprised".',
+    'Study finds 100% of reactions eventually reach equilibrium, or the chemist goes home.',
+    'Avogadro\'s constant still 6.022 × 10²³; mole community relieved.',
+    'Esters demand recognition as "the nice-smelling ones".',
+    'Grignard reagent spotted near a glass of water. Authorities urge calm.',
+    'Breaking: chemist forgets to stock H₂SO₄, Fischer esterification takes 3 weeks.',
+    'Diazonium salt reaches 6 °C. There were no survivors (of the diazonium salt).',
+    'Local free radical refuses to pair up, cites "independence".',
+    'Palladium prices rise as Suzuki, Heck and Sonogashira enter the chat.',
+    'Chemists confirm: the yield is always lower after recrystallisation, but your soul is purer.',
+    'New study: 9 out of 10 TLC plates are run in the wrong eluent.',
+    'Rotary evaporator bumps; entire product now on the ceiling.',
+    'Le Chatelier\'s principle applied to sock drawer — equilibrium shifts towards odd socks.',
+    'Aromaticity: still the most stable relationship in chemistry.',
+    'Carbocation rearranges itself for the third time this week, says it "finally feels stable".',
+  ];
+  let newsBusy = false;
+  function nextNews() {
+    const el = $('#news-text');
+    if (!el || !S.settings.news) { newsBusy = false; return; }
+    const pool = NEWS.concat(CC.RECIPES.filter((r) => G.researched(r)).map((r) => 'Did you know? ' + r.learn));
+    const txt = CC.pick(pool);
+    el.textContent = txt;
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = `ticker ${Math.round(12 + txt.length * 0.14)}s linear 1`;
+    newsBusy = true;
+  }
+  U.startNews = function () {
+    const el = $('#news-text');
+    el.addEventListener('animationend', nextNews);
+    nextNews();
+  };
 
   // ───────────────────────── toasts / modal ─────────────────────────
   U.toast = function (msg, kind) {
@@ -402,8 +522,8 @@ var CC = (globalThis.CC = globalThis.CC || {});
     return `<svg class="flask" id="lab-flask" viewBox="0 0 220 260" aria-label="Reaction flask">
       <defs><clipPath id="flaskClip"><circle cx="110" cy="160" r="64"/><rect x="96" y="40" width="28" height="70"/></clipPath>
         <radialGradient id="shine" cx="35%" cy="30%" r="70%"><stop offset="0%" stop-color="#fff" stop-opacity="0.25"/><stop offset="60%" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>
-      <ellipse id="lab-bath" cx="110" cy="236" rx="96" ry="18" fill="#3a465e"/>
-      <rect x="20" y="226" width="180" height="26" rx="8" fill="#232c3d" stroke="#33415c"/>
+      <ellipse id="lab-bath" cx="110" cy="236" rx="96" ry="18" fill="#a7b0bb"/>
+      <rect class="hotplate" x="20" y="226" width="180" height="26" rx="4"/>
       <rect class="cond" x="98" y="0" width="24" height="40" rx="4"/>
       <line class="cond-in" x1="110" y1="2" x2="110" y2="40"/>
       <circle class="drip" cx="110" cy="40" r="2"/>
@@ -417,9 +537,9 @@ var CC = (globalThis.CC = globalThis.CC || {});
       <rect x="92" y="36" width="36" height="6" rx="2" fill="rgba(200,225,255,0.7)"/>
     </svg>`;
   }
-  const TY = (T) => 210 - ((CC.clamp(T, -20, 220) + 20) / 240) * 196;
+  const TY = (T) => 210 - ((CC.clamp(T, -20, 300) + 20) / 320) * 196;
   function thermoSvg() {
-    const ticks = [0, 50, 100, 150, 200].map((t) => `<line x1="30" x2="35" y1="${TY(t)}" y2="${TY(t)}" stroke="#55627d"/><text x="37" y="${TY(t) + 3}">${t}</text>`).join('');
+    const ticks = [0, 50, 100, 150, 200, 250, 300].map((t) => `<line x1="30" x2="35" y1="${TY(t)}" y2="${TY(t)}" /><text x="37" y="${TY(t) + 3}">${t}</text>`).join('');
     return `<svg class="thermo" viewBox="0 0 54 240" aria-label="Thermometer">
       <rect class="tube" x="15" y="8" width="12" height="206" rx="6"/>
       <rect id="lab-merc" x="18" y="200" width="6" height="20" rx="3"/>
@@ -466,7 +586,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     if (b.report && b.report.fatal && lastShake !== b.report) { lastShake = b.report; flask.classList.remove('shake'); void flask.getBBox(); flask.classList.add('shake'); }
     const bath = $('#lab-bath');
     const hot = CC.clamp((b.set - 22) / 180, 0, 1), cold = CC.clamp((22 - b.set) / 27, 0, 1);
-    bath.setAttribute('fill', cold > 0 ? CC.mix('#3a465e', '#5ab0ff', cold) : CC.mix('#3a465e', '#ff5a1f', hot));
+    bath.setAttribute('fill', cold > 0 ? CC.mix('#a7b0bb', '#5ab0ff', cold) : CC.mix('#a7b0bb', '#ff5a1f', hot));
     $('#lab-T').textContent = T.toFixed(1);
     const merc = $('#lab-merc');
     merc.setAttribute('y', TY(T));
@@ -588,11 +708,14 @@ var CC = (globalThis.CC = globalThis.CC || {});
       const l = G.lvl(u.id);
       const maxed = l >= u.max;
       const c = u.cost(l);
-      return `<div class="panel upg"><div class="hd"><span class="ic">${u.icon}</span><b>${esc(u.name)}</b><span class="lv">${u.max > 1 ? `Lv ${l}${u.max < 100 ? '/' + u.max : ''}` : l ? 'owned' : ''}</span></div>
-        <div class="note">${esc(u.desc(l))}</div>
-        ${maxed ? '<span class="tag good">Maxed</span>' : `<button class="btn" data-act="upg" data-id="${u.id}" data-cost="${c}">${esc(u.next(l))} — <b class="c-money">${CC.money(c)}</b></button>`}</div>`;
+      return `<button class="upgbtn ${maxed ? 'bought' : ''}" data-act="upg" data-id="${u.id}" ${maxed ? 'disabled data-lock="1"' : `data-cost="${c}"`}>
+        <span class="u-ic">${u.icon}</span><b>${esc(u.name)}</b>
+        <span class="u-desc">${esc(u.desc(l))}</span>
+        <span class="u-lv">${u.max > 1 ? `Level ${l}${u.max < 100 ? ' / ' + u.max : ''}` : l ? 'Owned' : ''}</span>
+        ${maxed ? '<span class="u-cost">MAXED</span>' : `<span class="u-next">${esc(u.next(l))}</span><span class="u-cost">Cost: ${CC.money(c)}</span>`}
+      </button>`;
     }).join('');
-    return `<section class="panel"><h3>🛠️ Lab upgrades</h3><div class="note" style="margin-bottom:12px">Spend money to make your whole operation bigger and faster. Research (🔬) unlocks new equipment; these are the incremental boosts.</div><div class="cards">${cards}</div></section>`;
+    return `<section class="panel"><h3>🛠️ Lab upgrades</h3><div class="note center" style="margin-bottom:14px">Spend money to make your whole operation bigger and faster.</div><div class="upggrid">${cards}</div></section>`;
   }
 
   // ───────────────────────── PLANT ─────────────────────────
@@ -603,33 +726,42 @@ var CC = (globalThis.CC = globalThis.CC || {});
   }
   function renderPlant() {
     if (!G.flag('automation')) {
-      return `<section class="panel"><h3>🏭 Plant</h3><p>Automated reactors run your mastered procedures around the clock — even while you're away.</p>
+      return `<section class="panel center"><h3 style="justify-content:center">🏭 Plant</h3><p>Automated reactors run your mastered procedures around the clock — even while you're away.</p>
         <p class="note">Research <b>Lab Automation</b> (🔬 Research tab) to unlock the plant. Meanwhile, keep running reactions by hand: each recipe needs a few successful manual runs before you can write an SOP for it.</p></section>`;
     }
-    const rows = CC.RECIPES.filter((r) => G.researched(r)).map((r) => {
+    const list = CC.RECIPES.filter((r) => G.researched(r));
+    const ready = list.filter((r) => G.canAutomate(r));
+    const pending = list.filter((r) => !G.canAutomate(r));
+    const rows = ready.map((r) => {
       const g = S.reactors[r.id];
-      const runs = G.runs(r.id), need = G.automateAt(r);
-      const main = Object.keys(r.products)[0];
-      if (!G.canAutomate(r)) {
-        return `<div class="rx"><div><b>${esc(r.name)}</b> ${stars(G.mastery(r.id))}<div class="note">→ ${esc(name(main))}</div></div>
-          <div><div class="bar thin"><i style="width:${CC.pct(Math.min(1, runs / need))}"></i></div><small>${Math.floor(runs)}/${need} successful manual runs to write an SOP</small></div>
-          <div class="note">Run it ${need - Math.floor(runs)} more time(s) in the Lab.</div></div>`;
-      }
       const n = g ? g.n : 0;
+      const main = Object.keys(r.products)[0];
       const ct = G.cycleTime(r);
-      const perMin = (60 / ct) * n * G.scale() * r.products[main] * G.autoYield(r);
+      const perSec = (n / ct) * G.scale() * r.products[main] * G.autoYield(r);
       const sop = G.sop(r);
-      return `<div class="rx"><div><b>${esc(r.name)}</b> ${stars(G.mastery(r.id))}<div class="note">→ ${esc(name(main))} · SOP: ${esc(sop.solvent === 'none' ? 'neat' : name(sop.solvent))}${sop.additive !== 'none' ? ', ' + esc(name(sop.additive)) : ''}</div>
-          <div class="note">Yield ${CC.pct(G.autoYield(r))} · cycle ${ct.toFixed(1)}s${n ? ` · ≈${qty(perMin)} mol/min` : ''}</div></div>
-        <div>${n ? `<div class="bar"><i data-live="rxp:${r.id}"></i></div><div class="st" data-live="rxs:${r.id}">${rxStatus(g)}</div>` : '<small>No reactors yet</small>'}</div>
-        <div class="row"><span class="tag">×${n}</span><button class="btn sm primary" data-act="reactor" data-id="${r.id}" data-cost="${G.reactorCost(r)}">+ Reactor (${CC.money(G.reactorCost(r))})</button>
-        ${n ? `<button class="btn sm" data-act="rtoggle" data-id="${r.id}">${g.on ? '⏸ Pause' : '▶ Resume'}</button>` : ''}</div></div>`;
+      const cost = G.reactorCost(r);
+      return `<div class="dim">
+        <div class="dim-name"><b>${esc(name(main))}</b> reactor ${stars(G.mastery(r.id))}<span class="mult">×${G.autoYield(r).toFixed(2)}</span>
+          <div class="note">${esc(r.name)} · ${esc(sop.solvent === 'none' ? 'neat' : name(sop.solvent))}${sop.additive !== 'none' ? ', ' + esc(name(sop.additive)) : ''} · ${ct.toFixed(1)}s/cycle</div></div>
+        <div class="dim-amt"><span class="big" data-live="rxa:${r.id}">${n}</span>${n ? `<small>+${qty(perSec)} mol/s</small>` : ''}
+          ${n ? `<div class="bar thin"><i data-live="rxp:${r.id}"></i></div><div class="st" data-live="rxs:${r.id}">${rxStatus(g)}</div>` : ''}</div>
+        <div class="dim-btns"><button class="btn dimbtn" data-act="reactor" data-id="${r.id}" data-cost="${cost}">Build 1<br>Cost: ${CC.money(cost)}</button>
+          <button class="btn dimbtn" data-act="rmax" data-id="${r.id}" data-cost="${cost}">Max</button>
+          ${n ? `<button class="btn dimbtn sm" data-act="rtoggle" data-id="${r.id}" title="${g.on ? 'Pause' : 'Resume'}">${g.on ? '⏸' : '▶'}</button>` : ''}</div>
+      </div>`;
     }).join('');
-    return `<section class="panel"><h3>🏭 Plant <span class="spacer"></span>
-      ${G.flag('autobuy') ? `<button class="btn sm ${S.autoBuy ? 'on' : ''}" data-act="autoBuy" title="Reactors buy missing reagents at +10%">📦 Auto-buy ${S.autoBuy ? 'ON' : 'off'}</button>` : ''}</h3>
-      <div class="note">Reactors follow the SOP (first listed solvent & the right catalyst), take ${CC.fmt(1.5)}× the manual time, and reach ${CC.pct(G.autoQuality())} of the ideal yield. Products go to your inventory${G.flag('autosell') ? ' or are auto-sold (toggle per product in the Market)' : ''}.
-      ${G.flag('autobuy') ? '' : ' Without <b>Procurement System</b> research, keep reagents stocked yourself.'}</div>
-      <div>${rows}</div></section>`;
+    const prow = pending.map((r) => {
+      const runs = G.runs(r.id), need = G.automateAt(r);
+      return `<div class="dim locked"><div class="dim-name"><b>${esc(name(Object.keys(r.products)[0]))}</b> reactor<div class="note">${esc(r.name)}</div></div>
+        <div class="dim-amt"><div class="bar thin"><i style="width:${CC.pct(Math.min(1, runs / need))}"></i></div><small>${Math.floor(runs)}/${need} manual runs</small></div>
+        <div class="dim-btns"><button class="btn dimbtn" disabled data-lock="1">Locked<br>Run it ${need - Math.floor(runs)} more time(s)</button></div></div>`;
+    }).join('');
+    return `<section class="panel"><div class="row center-row">
+        <button class="btn" data-act="maxAll">Max all (M)</button><button class="btn" data-act="allOn">▶ Run all</button><button class="btn" data-act="allOff">⏸ Pause all</button>
+        ${G.flag('autobuy') ? `<button class="btn ${S.autoBuy ? 'on' : ''}" data-act="autoBuy" title="Reactors buy missing reagents at +10%">📦 Auto-buy: ${S.autoBuy ? 'ON' : 'OFF'}</button>` : ''}</div>
+      <div class="note center" style="margin:8px 0 4px">Reactors follow the SOP, take ${CC.fmt(1.5)}× the manual time and reach ${CC.pct(G.autoQuality())} of the ideal yield (the ×multiplier). ${G.flag('autosell') ? 'Toggle auto-sell per product in the Market.' : ''}${G.flag('autobuy') ? '' : ' Without <b>Procurement System</b> research, keep reagents stocked yourself.'}</div>
+      <div class="dims">${rows || '<div class="empty center">No reaction is ready for automation yet.</div>'}</div>
+      ${prow ? `<h3 style="margin-top:16px">🔒 Needs more manual runs</h3><div class="dims">${prow}</div>` : ''}</section>`;
   }
 
   // ───────────────────────── RESEARCH ─────────────────────────
@@ -840,9 +972,40 @@ var CC = (globalThis.CC = globalThis.CC || {});
       <div class="stack">
         <section class="panel"><h3>🎯 Objectives</h3><table class="t">${goals}</table></section>
         <section class="panel"><h3>📜 Patents (prestige)</h3>${prestige}</section>
-        <section class="panel"><h3>💾 Save</h3><div class="row"><button class="btn" data-act="save">Save now</button><button class="btn" data-act="exportSave">Export</button><button class="btn" data-act="importSave">Import</button><button class="btn danger" data-act="reset">Hard reset</button></div>
-          <textarea id="save-text" placeholder="Exported save appears here. Paste a save here, then press Import." style="margin-top:8px"></textarea>
-          <div class="note">Autosaves every 15 seconds. Offline progress (plant only) is credited for up to 8 hours.</div></section>
       </div></div>`;
+  }
+
+  // ───────────────────────── OPTIONS ─────────────────────────
+  function opt(k, v, label) {
+    return `<button class="btn ${String(S.settings[k]) === String(v) ? 'on' : ''}" data-act="set" data-k="${k}" data-v="${v}">${label}</button>`;
+  }
+  function renderOptions() {
+    const st = S.settings;
+    return `<div class="optgrid">
+      <section class="panel"><h3>💾 Saving</h3>
+        <div class="optbtns">
+          <button class="btn optbtn" data-act="save">Save game</button>
+          <button class="btn optbtn" data-act="exportCopy">Export (copy)</button>
+          <button class="btn optbtn" data-act="exportFile">Export to file</button>
+          <button class="btn optbtn" data-act="importOpen">Import (paste)</button>
+          <button class="btn optbtn" data-act="importFile">Import from file</button>
+          <button class="btn optbtn danger" data-act="reset">Hard reset</button>
+        </div>
+        <div class="field" style="margin-top:12px"><label>Autosave interval: <b id="autosave-val">${st.autosave}s</b></label>
+          <input type="range" min="5" max="120" step="5" value="${st.autosave}" data-input="autosave" /></div>
+        <div class="note">Last saved: <span data-live="saved"></span>. Saves live in this browser's local storage — export a backup to move between devices.</div>
+      </section>
+      <section class="panel"><h3>🎨 Display</h3>
+        <div class="field"><label>Theme</label><div class="seg">${opt('theme', 'light', '☀️ Light')}${opt('theme', 'dark', '🌙 Dark')}</div></div>
+        <div class="field"><label>Number notation</label><div class="seg">${opt('notation', 'standard', '1.23M')}${opt('notation', 'scientific', '1.23e6')}${opt('notation', 'engineering', '1.23e6 (eng.)')}</div></div>
+        <div class="field"><label>News ticker</label><div class="seg">${opt('news', true, 'On')}${opt('news', false, 'Off')}</div></div>
+      </section>
+      <section class="panel"><h3>⚙️ Gameplay</h3>
+        <div class="field"><label>Offline progress (plant keeps running, up to 8 h)</label><div class="seg">${opt('offline', true, 'On')}${opt('offline', false, 'Off')}</div></div>
+        <div class="field"><label>Extra confirmations (prestige, hard reset)</label><div class="seg">${opt('confirm', true, 'On')}${opt('confirm', false, 'Off')}</div></div>
+        <div class="field"><label>Hotkeys</label><div class="note">1–8 switch tabs · M = max all reactors · S = save · Space = start / work up in the Lab</div></div>
+        <button class="btn" data-act="help">How to play</button>
+      </section>
+    </div>`;
   }
 })();

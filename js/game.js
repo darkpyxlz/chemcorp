@@ -25,7 +25,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   ];
   G.MASTERY = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500];
   G.AUTOMATE_AT = [0, 5, 8, 10, 12, 15, 20];
-  G.EQ_STEPS = [0.25, 0.5, 1, 1.5, 2, 3, 4];
+  G.EQ_STEPS = [0.25, 0.5, 1, 1.5, 2, 3, 4, 5, 6];
   G.ATMS = {
     air: { name: 'Air', icon: '🌬️' },
     n2: { name: 'N₂ (inert)', icon: '🫧' },
@@ -66,6 +66,11 @@ var CC = (globalThis.CC = globalThis.CC || {});
   let D = null; // cache derived from researched tech
   G.state = () => S;
 
+  function defaultSettings() {
+    return { theme: 'light', notation: 'standard', autosave: 15, offline: true, news: true, confirm: true };
+  }
+  G.defaultSettings = defaultSettings;
+
   function fresh() {
     return {
       v: 1,
@@ -83,6 +88,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       demand: {},
       courses: {},
       school: null,
+      settings: defaultSettings(),
       contracts: [],
       nextContractAt: Date.now() + 45000,
       contractSeq: 0,
@@ -138,7 +144,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   G.automateAt = (r) => G.AUTOMATE_AT[r.tier];
   G.canAutomate = (r) => G.flag('automation') && G.researched(r) && G.runs(r.id) >= G.automateAt(r);
 
-  G.baseYield = (r) => (r.eqm && G.flag('deanstark') ? Math.max(r.yield, 0.92) : r.yield);
+  G.baseYield = (r) => (r.eqm && !r.noDean && G.flag('deanstark') ? Math.max(r.yield, 0.92) : r.yield);
   G.yieldMult = (r) => (G.flag('recryst') ? 1.08 : 1) * (1 + 0.02 * G.mastery(r.id));
   G.autoYield = (r) => Math.min(0.99, G.baseYield(r) * G.autoQuality() * G.yieldMult(r));
   G.manualTime = (r) => r.time / G.manualSpeed() / (1 + 0.06 * G.mastery(r.id));
@@ -332,6 +338,26 @@ var CC = (globalThis.CC = globalThis.CC || {});
     g.n++;
     G.dirty();
     return true;
+  };
+  // Build as many reactors for one recipe as money allows.
+  G.buildMax = function (rid) {
+    let n = 0;
+    while (n < 1000 && G.buildReactor(rid)) n++;
+    return n;
+  };
+  // Spend money on reactors across every automatable recipe, cheapest first.
+  G.maxAll = function () {
+    const rs = CC.RECIPES.filter((r) => G.canAutomate(r) && S.reactors[r.id] && S.reactors[r.id].n > 0);
+    let n = 0;
+    while (n < 5000 && rs.length) {
+      const r = rs.reduce((a, b) => (G.reactorCost(a) <= G.reactorCost(b) ? a : b));
+      if (!G.buildReactor(r.id)) break;
+      n++;
+    }
+    return n;
+  };
+  G.setAllReactors = function (on) {
+    for (const id in S.reactors) S.reactors[id].on = on;
   };
   G.toggleReactor = function (rid) {
     const g = S.reactors[rid];
@@ -532,7 +558,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   G.prestige = function () {
     const gain = G.patentGain();
     if (!G.flag('patent') || gain < 1) return false;
-    const keep = { school: S.school, courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
+    const keep = { settings: S.settings, school: S.school, courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
     S = Object.assign(fresh(), keep);
     S.stats.runEarned = 0;
     S.stats.prestiges++;
@@ -569,8 +595,10 @@ var CC = (globalThis.CC = globalThis.CC || {});
 
   // ───────── persistence ─────────
   G.serialize = () => JSON.stringify(S);
+  G.lastSave = 0;
   G.save = function () {
     S.time = Date.now();
+    G.lastSave = Date.now();
     try { localStorage.setItem(SAVE_KEY, G.serialize()); } catch (e) { /* storage unavailable */ }
   };
   function hydrate(obj) {
@@ -578,6 +606,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     S = Object.assign(base, obj);
     S.stats = Object.assign(fresh().stats, obj.stats || {});
     S.lab = Object.assign(fresh().lab, obj.lab || {});
+    S.settings = Object.assign(defaultSettings(), obj.settings || {});
     if (S.lab.run && S.lab.run.xi == null) S.lab.run = null; // run from an older version
     G.recalc();
   }
@@ -587,7 +616,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     try { raw = localStorage.getItem(SAVE_KEY); } catch (e) { /* ignore */ }
     if (!raw) { S = fresh(); G.recalc(); return null; }
     try { hydrate(JSON.parse(raw)); } catch (e) { console.warn('Bad save, starting fresh', e); S = fresh(); G.recalc(); return null; }
-    return G.catchUp((Date.now() - S.time) / 1000);
+    return S.settings.offline ? G.catchUp((Date.now() - S.time) / 1000) : null;
   };
   G.catchUp = function (sec) {
     sec = Math.min(OFFLINE_CAP, sec);
@@ -606,7 +635,9 @@ var CC = (globalThis.CC = globalThis.CC || {});
     G.dirty();
   };
   G.reset = function () {
+    const settings = S.settings;
     S = fresh();
+    S.settings = settings;
     G.recalc();
     G.save();
     G.dirty();

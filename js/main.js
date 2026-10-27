@@ -4,6 +4,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   const G = CC.Game;
   const away = G.load();
   CC.UI.init();
+  CC.UI.startNews();
 
   const S = G.state();
   if (away && (away.money > 0.01 || away.rp > 0.01)) {
@@ -18,11 +19,11 @@ var CC = (globalThis.CC = globalThis.CC || {});
     let dt = (now - last) / 1000;
     last = now;
     // Background tabs throttle timers; treat long gaps as offline time.
-    if (dt > 5) { G.catchUp(dt); dt = 0.1; }
+    if (dt > 5) { if (G.state().settings.offline) G.catchUp(dt); dt = 0.1; }
     G.tick(Math.min(dt, 0.5));
     CC.UI.frame(dt);
     saveTimer += dt;
-    if (saveTimer > 15) { saveTimer = 0; G.save(); }
+    if (saveTimer > (G.state().settings.autosave || 15)) { saveTimer = 0; G.save(); }
   }
   setInterval(loop, 100);
   CC.UI.frame(0);

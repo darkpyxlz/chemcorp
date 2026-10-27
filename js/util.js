@@ -4,6 +4,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   const SUF = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
 
   // Compact number formatting: 12.5, 1.23K, 4.56M ...
+  CC.notation = 'standard';
   CC.fmt = function (n, dp) {
     if (n === Infinity) return '∞';
     if (typeof n !== 'number' || !isFinite(n)) return '—';
@@ -15,10 +16,18 @@ var CC = (globalThis.CC = globalThis.CC || {});
       s = n.toFixed(d);
       if (dp == null && s.indexOf('.') >= 0) s = s.replace(/\.?0+$/, '');
     } else {
-      let e = Math.floor(Math.log10(n) / 3);
-      let v = n / Math.pow(1000, e);
-      if (v >= 999.995) { e++; v /= 1000; }
-      s = e < SUF.length ? v.toFixed(2) + SUF[e] : n.toExponential(2);
+      const x = Math.floor(Math.log10(n));
+      if (CC.notation === 'scientific') {
+        let m = n / Math.pow(10, x), ex = x;
+        if (m >= 9.995) { m /= 10; ex++; }
+        s = m.toFixed(2) + 'e' + ex;
+      } else {
+        let e = Math.floor(x / 3);
+        let v = n / Math.pow(1000, e);
+        if (v >= 999.995) { e++; v /= 1000; }
+        if (CC.notation === 'engineering') s = v.toFixed(2) + 'e' + e * 3;
+        else s = e < SUF.length ? v.toFixed(2) + SUF[e] : n.toExponential(2);
+      }
     }
     return (neg ? '-' : '') + s;
   };
