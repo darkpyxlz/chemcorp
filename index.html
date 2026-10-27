@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChemCorp — Organic Chemistry Idle Lab</title>
+  <meta name="description" content="An incremental organic chemistry game: run reactions, sell products, research new chemistry, automate your plant and learn along the way." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo">⚗️</span> ChemCorp</div>
+    <div class="res">
+      <div class="res-item money" title="Funds"><span class="lbl">Funds</span><b id="h-money">$0</b><small id="h-mrate"></small></div>
+      <div class="res-item rp" title="Research Points"><span class="lbl">Research</span><b id="h-rp">0 RP</b><small id="h-rrate"></small></div>
+      <div class="res-item patents" id="h-patents-wrap" hidden title="Patents: +10% sale prices and RP each"><span class="lbl">Patents</span><b id="h-patents">0</b></div>
+    </div>
+    <button class="ghost help-btn" data-act="help" title="How to play">?</button>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="goal" id="goal"></div>
+  <main id="view"></main>
+  <div id="toasts"></div>
+  <div id="modal" hidden></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/data/items.js"></script>
+  <script src="js/data/recipes.js"></script>
+  <script src="js/data/tech.js"></script>
+  <script src="js/data/academy.js"></script>
+  <script src="js/data/goals.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/lab.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
