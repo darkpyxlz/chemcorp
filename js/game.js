@@ -25,7 +25,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   ];
   G.MASTERY = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500];
   G.AUTOMATE_AT = [0, 5, 8, 10, 12, 15, 20];
-  G.EQ_STEPS = [0.25, 0.5, 1, 1.5, 2, 3, 4, 5, 6];
+  G.EQ_STEPS = [0.25, 1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3, 4, 5, 6, 7, 8];
   G.ATMS = {
     air: { name: 'Air', icon: '🌬️' },
     n2: { name: 'N₂ (inert)', icon: '🫧' },
@@ -94,7 +94,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       contractSeq: 0,
       goals: {},
       revealed: {},
-      lab: { slots: [], solvent: 'none', additive: 'none', atm: 'air', set: 22, T: 22, run: null, last: null, report: null },
+      lab: { slots: [], solvent: 'none', additive: 'none', atm: 'air', app: 'reflux', set: 22, T: 22, run: null, last: null, report: null },
       stats: { lifetimeEarned: 0, runEarned: 0, manualRuns: 0, autoBatches: 0, bought: 0, sold: 0, quizCorrect: 0, playTime: 0, prestiges: 0, contracts: 0, failed: 0 },
       time: Date.now(),
       created: Date.now(),
@@ -558,7 +558,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   G.prestige = function () {
     const gain = G.patentGain();
     if (!G.flag('patent') || gain < 1) return false;
-    const keep = { settings: S.settings, school: S.school, courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
+    const keep = { settings: S.settings, puzzles: S.puzzles, school: S.school, courses: S.courses, recipes: S.recipes, revealed: S.revealed, goals: S.goals, stats: S.stats, created: S.created, patents: S.patents + gain };
     S = Object.assign(fresh(), keep);
     S.stats.runEarned = 0;
     S.stats.prestiges++;

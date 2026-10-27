@@ -30,6 +30,43 @@ CC.COURSES = [
     ],
   },
   {
+    id: 'halo', name: 'Alkanes, Haloalkanes & Alcohols', icon: '⛓️', reward: 15, req: 'lab_basics',
+    desc: 'Free radicals, substitution vs elimination, oxidation and the classic pathways.',
+    lessons: [
+      { t: 'Free-radical substitution', b: `
+<p>Alkanes are unreactive, but UV light splits halogen molecules into <b>radicals</b> (species with an unpaired electron):</p>
+<div class="eq">Initiation: Br₂ → 2 Br•<br>Propagation: Br• + CH₄ → HBr + •CH₃ ; •CH₃ + Br₂ → CH₃Br + Br•<br>Termination: Br• + Br• → Br₂ ; •CH₃ + Br• → CH₃Br ; 2 •CH₃ → C₂H₆</div>
+<p>Each propagation step makes a new radical, so one photon can start a long <b>chain reaction</b>. Radical stability is <b>tertiary &gt; secondary &gt; primary</b>, and bromine is very selective for the most stable radical. Downsides: mixtures and further substitution (CH₂Br₂, CHBr₃…).</p>` },
+      { t: 'Haloalkanes: substitution or elimination?', b: `
+<p>The C–X bond is polar (C<sup>δ+</sup>), so nucleophiles attack the carbon. The conditions decide what happens:</p>
+<ul><li><b>NaOH(aq)</b>, heat under reflux → <b>alcohol</b> (OH⁻ acts as a nucleophile)</li>
+<li><b>KOH in ethanol</b>, heat → <b>alkene</b> (OH⁻ acts as a base and removes a β-H)</li>
+<li><b>KCN in ethanol</b>, heat → <b>nitrile</b> (adds one carbon to the chain)</li>
+<li><b>excess NH₃ in ethanol</b>, heat in a sealed tube → <b>amine</b></li></ul>
+<p>Bond strength sets the rate: C–I is the weakest, so iodoalkanes react fastest; C–F barely reacts.</p>` },
+      { t: 'Alkenes: electrophilic addition', b: `
+<p>The C=C π bond is electron-rich and attacks electrophiles:</p>
+<ul><li><b>HBr</b> → bromoalkane (Markovnikov: H goes to the carbon that already has more H)</li>
+<li><b>Br₂</b> → 1,2-dibromoalkane — the test for C=C: <b>orange bromine water decolourises</b></li>
+<li><b>steam, H₃PO₄, 300 °C, 60 atm</b> → alcohol (industrial ethanol)</li>
+<li><b>H₂, Ni, 150 °C</b> → alkane</li></ul>
+<p>The reverse of hydration is dehydration: alcohol + excess conc. H₂SO₄ at 170 °C → alkene.</p>` },
+      { t: 'Alcohols, carbonyls & nitriles', b: `
+<p>Acidified <b>K₂Cr₂O₇</b> (orange → green) oxidises alcohols:</p>
+<ul><li>1° alcohol → <b>aldehyde</b> if you <b>distil it out immediately</b>; → <b>carboxylic acid</b> if you <b>heat under reflux</b></li>
+<li>2° alcohol → <b>ketone</b></li><li>3° alcohol → no reaction</li></ul>
+<p>Tests: <b>2,4-DNPH</b> gives an orange precipitate with any C=O; <b>Tollens' reagent</b> gives a silver mirror only with aldehydes; <b>I₂/NaOH</b> gives yellow CHI₃ with CH₃CO– or CH₃CH(OH)– groups.</p>
+<p>HCN adds to C=O (nucleophilic addition) → <b>hydroxynitrile</b>. Nitriles hydrolyse (acid, reflux) to <b>carboxylic acids</b>, or are reduced (LiAlH₄) to <b>amines</b>.</p>` },
+    ],
+    quiz: [
+      { q: 'What does UV light do in free-radical substitution?', o: ['Breaks C–H bonds heterolytically', 'Splits Br₂ into two Br• radicals', 'Acts as a catalyst for addition', 'Ionises the alkane'], a: 1, e: 'Homolytic fission of the weak Br–Br bond starts the chain (initiation).' },
+      { q: 'Bromoethane + KOH dissolved in ethanol, heated. Main product?', o: ['Ethanol', 'Ethene', 'Ethylamine', 'Propanenitrile'], a: 1, e: 'In ethanol, OH⁻ acts as a base: elimination.' },
+      { q: 'Which reagent lengthens a carbon chain by one carbon?', o: ['NaOH(aq)', 'NH₃', 'KCN', 'HBr'], a: 2, e: 'CN⁻ adds a carbon: R–Br → R–CN.' },
+      { q: 'To make ethanal (not ethanoic acid) from ethanol with acidified dichromate you should…', o: ['heat under reflux for a long time', 'distil the product out as it forms', 'add excess dichromate', 'use concentrated NaOH'], a: 1, e: 'Distillation removes the volatile aldehyde before it is oxidised further.' },
+      { q: 'Which compound gives a yellow precipitate with I₂ and NaOH?', o: ['Methanol', 'Propan-2-ol', 'Propan-1-ol', 'Methanal'], a: 1, e: 'Propan-2-ol has the CH₃CH(OH)– group.' },
+    ],
+  },
+  {
     id: 'acids_bases', name: 'Organic Acids & Bases', icon: '⚗️', reward: 10, req: 'lab_basics',
     desc: 'Carboxylic acids, pKa and soap-making.',
     lessons: [

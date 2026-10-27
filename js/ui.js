@@ -12,11 +12,11 @@ var CC = (globalThis.CC = globalThis.CC || {});
   let tab = 'lab';
   let dirty = true;
   let pointerDown = false;
-  const sub = { tech: null, course: null, lesson: 0, quiz: false, answers: {}, result: null, buyAmt: 1, nbOpen: {}, acTab: 'school', round: null, last: null, learnFilter: 'all' };
+  const sub = { pz: 'name', pname: null, pbuild: null, pmech: null, proute: null, tech: null, course: null, lesson: 0, quiz: false, answers: {}, result: null, buyAmt: 1, nbOpen: {}, acTab: 'school', round: null, last: null, learnFilter: 'all' };
 
   const TABS = [
     ['lab', '🧪 Lab'], ['market', '🏪 Market'], ['upgrades', '🛠️ Upgrades'], ['plant', '🏭 Plant'],
-    ['research', '🔬 Research'], ['academy', '🎓 Academy'], ['stats', '📊 Statistics'], ['options', '⚙️ Options'],
+    ['research', '🔬 Research'], ['academy', '🎓 Academy'], ['puzzles', '🧩 Puzzles'], ['stats', '📊 Statistics'], ['options', '⚙️ Options'],
   ];
 
   const name = (id) => CC.itemName(id);
@@ -63,6 +63,35 @@ var CC = (globalThis.CC = globalThis.CC || {});
     rm: (d) => L.remove(d.id),
     eq: (d) => L.stepEq(d.id, +d.d),
     atm: (d) => L.setAtm(d.a),
+    app: (d) => L.setApp(d.a),
+    // puzzles
+    pz: (d) => { sub.pz = d.t; },
+    pnameNew: (d) => { sub.pname = CC.Puzzles.newName(+d.l || 1); },
+    pnameAns: (d) => { if (sub.pname) CC.Puzzles.answerName(sub.pname, +d.i); },
+    pbuildNew: () => { sub.pbuild = CC.Puzzles.newBuild(); },
+    pblen: (d) => CC.Puzzles.setLength(sub.pbuild, sub.pbuild.mol.n + +d.d),
+    pbadd: (d) => { if (!sub.pbuild.done) CC.Puzzles.addGroup(sub.pbuild, +d.i, d.g); },
+    pbrm: (d) => { if (!sub.pbuild.done) CC.Puzzles.removeGroup(sub.pbuild, +d.i, +d.k); },
+    pbdb: (d) => { if (!sub.pbuild.done) CC.Puzzles.toggleDb(sub.pbuild, +d.i); },
+    pbcheck: () => CC.Puzzles.checkBuild(sub.pbuild),
+    pbreveal: () => { const q = sub.pbuild; q.revealed = true; q.mol = CC.Mol.clone(q.target); },
+    pmech: (d) => { sub.pmech = CC.Puzzles.startMech(d.id); },
+    pmechBack: () => { sub.pmech = null; },
+    msite: (d) => {
+      const st = sub.pmech;
+      if (!st || CC.Puzzles.mechStepDone(st)) return;
+      const site = d.site;
+      if (!st.pending) {
+        if (site.startsWith('a:')) { st.msg = 'Arrows start where electrons are: click a lone pair (• •) or a bond first.'; st.mistakes++; return; }
+        st.pending = site; st.msg = 'Now click where those electrons go.';
+      } else if (st.pending === site) { st.pending = null; st.msg = ''; }
+      else { CC.Puzzles.tryArrow(st, st.pending, site); st.pending = null; }
+    },
+    mnext: () => CC.Puzzles.nextMechStep(sub.pmech),
+    mreset: () => { const st = sub.pmech; st.drawn = []; st.pending = null; st.msg = ''; },
+    prouteNew: (d) => { sub.proute = CC.Puzzles.newRoute(+d.l || 2); sub.routeSolve = false; },
+    proute: (d) => CC.Puzzles.routeMove(sub.proute, sub.proute.opts[+d.i]),
+    prouteSolve: () => { sub.routeSolve = true; },
     start: () => L.start(),
     workup: () => L.workup(),
     abort: () => L.abort(),
@@ -259,7 +288,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const view = $('#view');
     const scroll = {};
     view.querySelectorAll('[data-keep-scroll]').forEach((el) => { scroll[el.dataset.keepScroll] = [el.scrollTop, el.scrollLeft]; });
-    const fn = { lab: renderLab, market: renderMarket, upgrades: renderUpgrades, plant: renderPlant, research: renderResearch, academy: renderAcademy, stats: renderStats, options: renderOptions }[tab];
+    const fn = { lab: renderLab, market: renderMarket, upgrades: renderUpgrades, plant: renderPlant, research: renderResearch, academy: renderAcademy, puzzles: renderPuzzles, stats: renderStats, options: renderOptions }[tab];
     view.innerHTML = fn();
     view.querySelectorAll('[data-keep-scroll]').forEach((el) => {
       const s = scroll[el.dataset.keepScroll];
@@ -423,6 +452,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       <div class="field"><label>Solvent</label><select data-change="solvent">${solventOpts.map((id) => `<option value="${id}" ${b.solvent === id ? 'selected' : ''}>${esc(id === 'none' ? 'None (neat)' : name(id))}</option>`).join('')}</select></div>
       <div class="field"><label>Catalyst / additive</label><select data-change="additive">${additiveOpts.map((id) => `<option value="${id}" ${b.additive === id ? 'selected' : ''}>${esc(name(id))}</option>`).join('')}</select></div>
       <div class="field"><label>Atmosphere</label><div class="seg">${atmBtns}</div></div>
+      <div class="field"><label>Apparatus</label><div class="seg"><button class="btn ${b.app !== 'distil' ? 'on' : ''}" data-act="app" data-a="reflux" title="Condenser vertical: vapour drips back, nothing escapes">🔁 Heat under reflux</button><button class="btn ${b.app === 'distil' ? 'on' : ''}" data-act="app" data-a="distil" title="Condenser angled away: volatile products are collected as they form">⚗️ Distil off product</button></div></div>
       </fieldset>
       <div class="field"><label>Bath setpoint: <b id="lab-set" style="color:var(--text)">${b.set}</b> °C <small>(${e.tMin} to ${e.tMax} °C)</small></label>
         <input type="range" min="${e.tMin}" max="${e.tMax}" step="1" value="${b.set}" data-input="temp" id="lab-temp" /></div>
@@ -502,6 +532,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
           <span class="k">Solvent</span><span>${r.solvents.map((s) => esc(s === 'none' ? 'none (neat)' : name(s))).join(' or ')}</span>
           <span class="k">Additive</span><span>${esc(sop)}</span>
           <span class="k">Atmosphere</span><span>${r.atm ? G.ATMS[r.atm].name : 'any'}</span>
+          ${r.app ? `<span class="k">Apparatus</span><span>${r.app === 'distil' ? 'distil the product off as it forms' : 'heat under reflux'}</span>` : ''}
           <span class="k">Best temp.</span><span>${tempText(r)}${r.exo ? ` <span class="tag warn">exothermic</span>` : ''}${r.strict ? ` <span class="tag bad">strict</span>` : ''}</span>
           <span class="k">Products</span><span>${Object.entries(r.products).map(([id, n]) => `${n > 1 ? n + ' ' : ''}${esc(name(id))}`).join(' + ')}</span>
         </div><button class="btn sm primary" data-act="load" data-id="${r.id}">Load into flask</button>`
@@ -975,6 +1006,148 @@ var CC = (globalThis.CC = globalThis.CC || {});
       </div></div>`;
   }
 
+  // ───────────────────────── PUZZLES ─────────────────────────
+  function renderPuzzles() {
+    const ps = CC.Puzzles.state();
+    const tabsH = `<div class="row center-row" style="margin-bottom:12px">${[['name', '🏷️ Name it'], ['build', '✏️ Build it'], ['mech', '↪️ Mechanisms'], ['route', '🗺️ Synthesis routes']].map(([id, l]) => `<button class="btn ${sub.pz === id ? 'on' : ''}" data-act="pz" data-t="${id}">${l}</button>`).join('')}</div>
+      <div class="note center" style="margin-bottom:12px">Named ${ps.named} · built ${ps.built} · mechanisms ${Object.keys(ps.mechs).length}/${CC.MECHANISMS.length} · routes ${ps.routes} (${ps.optimal} optimal) · <span class="c-rp">${CC.fmt(ps.rp)} RP earned</span></div>`;
+    const body = { name: pzName, build: pzBuild, mech: pzMech, route: pzRoute }[sub.pz]();
+    return tabsH + body;
+  }
+
+  function pzName() {
+    if (!sub.pname) sub.pname = CC.Puzzles.newName(1);
+    const q = sub.pname;
+    const ps = CC.Puzzles.state();
+    const opts = q.options.map((o, i) => {
+      let cls = '';
+      if (q.done) cls = o === q.answer ? 'right' : q.choice === i ? 'wrong' : '';
+      return `<button class="opt" data-act="pnameAns" data-i="${i}" ${q.done ? 'disabled' : ''}><span class="${cls}">${'ABCD'[i]}. ${esc(o)}</span></button>`.replace('class="opt"', `class="opt ${cls}"`);
+    }).join('');
+    const res = q.result;
+    return `<section class="panel"><h3>🏷️ Name this molecule <span class="spacer"></span><small>streak ${ps.streak} · best ${ps.best}</small></h3>
+      <div class="center">${CC.Mol.svg(q.mol)}<div class="note">Condensed: <b>${esc(CC.Mol.condensed(q.mol))}</b></div></div>
+      <div class="opts" style="max-width:560px;margin:12px auto">${opts}</div>
+      ${res ? `<div class="report ${res.ok ? 'ok' : 'fail'}" style="max-width:560px;margin:0 auto"><h4>${res.ok ? `✅ Correct! <span class="c-rp">+${CC.fmt(res.rp)} RP</span>` : '❌ Not quite'}</h4>
+        <div>It's <b>${esc(q.answer)}</b>. ${nameTip(q.mol)}</div></div>` : ''}
+      <div class="row center-row" style="margin-top:12px"><button class="btn ${q.done ? 'primary' : ''}" data-act="pnameNew" data-l="1">Next (easier)</button><button class="btn ${q.done ? 'primary' : ''}" data-act="pnameNew" data-l="2">Next (harder)</button></div>
+      <div class="note center" style="margin-top:10px">Rules: find the longest chain containing the main group · number from the end that gives the main group (then C=C, then substituents) the lowest locants · list substituents alphabetically.</div></section>`;
+  }
+  function nameTip(m) {
+    const n = m.n;
+    return `Longest chain: ${n} carbon${n > 1 ? 's' : ''} → “${CC.Mol.STEMS[n - 1]}-”.`;
+  }
+
+  const GLBL = { OH: '–OH', O: '=O', Cl: '–Cl', Br: '–Br', CH3: '–CH₃', NH2: '–NH₂' };
+  function pzBuild() {
+    if (!sub.pbuild) sub.pbuild = CC.Puzzles.newBuild();
+    const q = sub.pbuild;
+    const m = q.mol;
+    const rows = Array.from({ length: m.n }, (_, i) => {
+      const have = m.sub[i].map((g, k) => `<button class="chip" data-act="pbrm" data-i="${i}" data-k="${k}" title="Remove">${GLBL[g]} ×</button>`).join('');
+      const add = CC.Mol.GROUPS.map((g) => `<button class="btn sm" data-act="pbadd" data-i="${i}" data-g="${g}" ${CC.Mol.canAdd(m, i, g) && !q.done ? '' : 'disabled data-lock="1"'}>${GLBL[g]}</button>`).join('');
+      const db = i < m.n - 1 ? `<div class="bondrow"><button class="btn sm ${m.db.includes(i) ? 'on' : ''}" data-act="pbdb" data-i="${i}" ${q.done ? 'disabled data-lock="1"' : ''}>C${i + 1}${m.db.includes(i) ? '=' : '–'}C${i + 2} ${m.db.includes(i) ? 'double' : 'single'}</button></div>` : '';
+      return `<div class="crow"><b>C${i + 1}</b><span class="row">${have || '<small>H only</small>'}</span><span class="row">${add}</span></div>${db}`;
+    }).join('');
+    const res = q.result;
+    return `<section class="panel"><h3>✏️ Draw the structure</h3>
+      <div class="center" style="font-size:22px;margin:6px 0 2px"><b>${esc(q.answer)}</b></div>
+      <div class="grid two" style="margin-top:10px"><div>
+        <div class="row" style="margin-bottom:8px"><span>Chain length:</span><button class="btn sm" data-act="pblen" data-d="-1" ${q.done ? 'disabled data-lock="1"' : ''}>−</button><b>${m.n}</b><button class="btn sm" data-act="pblen" data-d="1" ${q.done ? 'disabled data-lock="1"' : ''}>+</button><small>(${CC.Mol.STEMS[m.n - 1]}-)</small></div>
+        <div class="builder">${rows}</div>
+      </div><div class="center">${CC.Mol.svg(m, { numbers: true })}<div class="note">${esc(CC.Mol.condensed(m))}</div></div></div>
+      ${res ? `<div class="report ${res.ok ? 'ok' : 'fail'}" style="margin-top:10px"><h4>${res.ok ? `✅ Correct!${res.rp ? ` <span class="c-rp">+${CC.fmt(res.rp)} RP</span>` : ''}` : '❌ Not that one'}</h4><div>Your structure is <b>${esc(res.got || 'invalid')}</b>.</div></div>` : ''}
+      <div class="row center-row" style="margin-top:12px">${q.done ? '<button class="btn primary" data-act="pbuildNew">Next molecule</button>' : '<button class="btn primary" data-act="pbcheck">Check</button><button class="btn" data-act="pbreveal">Show answer</button><button class="btn" data-act="pbuildNew">Skip</button>'}</div>
+      <div class="note center" style="margin-top:8px">Build the main chain, then add groups to each carbon. Methyl branches go on inner carbons. A terminal C with =O is an aldehyde; =O and –OH together make a carboxylic acid.</div></section>`;
+  }
+
+  function mechSvg(step, st) {
+    const A = {};
+    for (const a of step.atoms) A[a.id] = a;
+    const r = (a) => (a.t ? 13 : 0);
+    const pt = (site) => {
+      const [k, id] = site.split(':');
+      if (k === 'lp') { const a = A[id]; return [a.x + a.lp[0], a.y + a.lp[1]]; }
+      if (k === 'b') { const b = step.bonds.find((x) => x.id === id); return [(A[b.a].x + A[b.b].x) / 2, (A[b.a].y + A[b.b].y) / 2]; }
+      return [A[id].x, A[id].y];
+    };
+    let o = '<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahead"/></marker></defs>';
+    for (const b of step.bonds) {
+      const a1 = A[b.a], a2 = A[b.b];
+      const vx = a2.x - a1.x, vy = a2.y - a1.y, L = Math.hypot(vx, vy), ux = vx / L, uy = vy / L;
+      const p1 = [a1.x + ux * r(a1), a1.y + uy * r(a1)], p2 = [a2.x - ux * r(a2), a2.y - uy * r(a2)];
+      const nx = -uy, ny = ux;
+      const offs = b.o === 2 ? [-3, 3] : b.o === 3 ? [-4, 0, 4] : [0];
+      for (const f of offs) o += `<line x1="${p1[0] + nx * f}" y1="${p1[1] + ny * f}" x2="${p2[0] + nx * f}" y2="${p2[1] + ny * f}" class="mb"/>`;
+      if (step.arrows) o += `<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" class="site sb ${st && st.pending === 'b:' + b.id ? 'sel' : ''}" data-act="msite" data-site="b:${b.id}"><title>bond</title></line>`;
+    }
+    for (const a of step.atoms) {
+      if (a.t) o += `<text x="${a.x}" y="${a.y + 5}" class="ma">${a.t}</text>`;
+      if (a.ch) o += `<text x="${a.x + (a.t.length > 2 ? 20 : 12)}" y="${a.y - 9}" class="mc">${a.ch}</text>`;
+      if (a.d) o += `<text x="${a.x}" y="${a.y + 26}" class="md">${a.d}</text>`;
+      if (a.lp) {
+        const [lx, ly] = [a.x + a.lp[0], a.y + a.lp[1]];
+        const horiz = Math.abs(a.lp[1]) > Math.abs(a.lp[0]);
+        o += `<circle cx="${lx + (horiz ? -3 : 0)}" cy="${ly + (horiz ? 0 : -3)}" r="1.8" class="lpd"/><circle cx="${lx + (horiz ? 3 : 0)}" cy="${ly + (horiz ? 0 : 3)}" r="1.8" class="lpd"/>`;
+        if (step.arrows) o += `<circle cx="${lx}" cy="${ly}" r="9" class="site sl ${st && st.pending === 'lp:' + a.id ? 'sel' : ''}" data-act="msite" data-site="lp:${a.id}"><title>lone pair</title></circle>`;
+      }
+      if (step.arrows && a.t) o += `<circle cx="${a.x}" cy="${a.y}" r="13" class="site sa" data-act="msite" data-site="a:${a.id}"><title>${a.t}</title></circle>`;
+    }
+    for (const [f, t] of (st && st.drawn) || []) {
+      const p = pt(f);
+      let q = pt(t);
+      const dx = q[0] - p[0], dy = q[1] - p[1], L = Math.hypot(dx, dy) || 1;
+      if (t.startsWith('a:')) q = [q[0] - (dx / L) * 14, q[1] - (dy / L) * 14];
+      let nx = -dy / L, ny = dx / L;
+      if (ny > 0) { nx = -nx; ny = -ny; }
+      const bend = Math.min(40, 12 + L * 0.25);
+      const c = [(p[0] + q[0]) / 2 + nx * bend, (p[1] + q[1]) / 2 + ny * bend];
+      o += `<path d="M${p[0].toFixed(1)},${p[1].toFixed(1)} Q${c[0].toFixed(1)},${c[1].toFixed(1)} ${q[0].toFixed(1)},${q[1].toFixed(1)}" class="arrow" marker-end="url(#ah)"/>`;
+    }
+    return `<svg class="mech" viewBox="0 0 380 180">${o}</svg>`;
+  }
+
+  function pzMech() {
+    const ps = CC.Puzzles.state();
+    const st = sub.pmech;
+    if (!st) {
+      const cards = CC.MECHANISMS.map((m) => `<button class="course ${ps.mechs[m.id] ? 'passed' : ''}" data-act="pmech" data-id="${m.id}"><span class="nm">${esc(m.name)}</span><span class="note">${esc(m.cls)} · ${m.steps.filter((s) => s.arrows).length} step(s)</span>${ps.mechs[m.id] ? `<span class="tag good">✓ solved ×${ps.mechs[m.id]}</span>` : ''}</button>`).join('');
+      return `<section class="panel"><h3>↪️ Curly-arrow mechanisms</h3><div class="note" style="margin-bottom:12px">Draw each curly arrow by clicking where a pair of electrons <b>starts</b> (a lone pair • • or a bond) and then where it <b>ends</b> (an atom, or between two atoms to make a new bond). Solve without mistakes for a bonus.</div><div class="cards">${cards}</div></section>`;
+    }
+    const m = CC.MECH[st.id];
+    const step = CC.Puzzles.mechStep(st);
+    const done = CC.Puzzles.mechStepDone(st);
+    const total = m.steps.filter((s) => s.arrows).length;
+    return `<section class="panel"><div class="row between"><h3 style="margin:0;border:0">${esc(m.name)}</h3><span class="row"><span class="tag">${st.done ? 'complete' : `step ${st.step + 1}/${total}`}</span><span class="tag ${st.mistakes ? 'bad' : 'good'}">${st.mistakes} mistake${st.mistakes === 1 ? '' : 's'}</span><button class="btn sm" data-act="pmechBack">← All mechanisms</button></span></div>
+      <div class="note" style="margin:8px 0">${esc(step.text)}</div>
+      <div class="mechwrap">${mechSvg(step, st)}</div>
+      ${step.arrows ? `<div class="note center">${st.drawn.length}/${step.arrows.length} arrows drawn ${st.drawn.length ? '<button class="btn sm" data-act="mreset">Undo all</button>' : ''}</div>` : ''}
+      ${st.msg ? `<div class="report ${/Good|Now/.test(st.msg) ? '' : 'fail'}" style="margin-top:8px">${esc(st.msg)}</div>` : ''}
+      ${done && step.arrows ? `<div class="report ok" style="margin-top:8px"><h4>✅ Step complete</h4><div>${esc(step.explain || '')}</div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="mnext">Next →</button></div></div>` : ''}
+      ${st.done ? `<div class="report ok" style="margin-top:8px"><h4>🎉 Mechanism complete <span class="c-rp">+${CC.fmt(st.rp)} RP</span></h4><div class="row" style="margin-top:8px"><button class="btn primary" data-act="pmech" data-id="${st.id}">Again</button><button class="btn" data-act="pmechBack">Choose another</button></div></div>` : ''}
+    </section>`;
+  }
+
+  function molBox(id, big) {
+    const M = CC.ROUTES.M[id];
+    const pic = M.mol ? CC.Mol.svg(CC.Puzzles.fromSpec(M.mol), { w: 240, h: 140 }) : `<div class="formula">${esc(M.f)}</div>`;
+    return `<div class="molbox ${big ? 'big' : ''}">${pic}<b>${esc(M.name)}</b><small>${esc(M.f)}</small></div>`;
+  }
+  function pzRoute() {
+    const r = sub.proute || (sub.proute = CC.Puzzles.newRoute(2));
+    const path = r.path.map((p, i) => (i ? `<span class="step-arrow">→ <small>${esc(p.cond)}</small> →</span>` : '') + `<span class="pathmol">${esc(CC.ROUTES.M[p.id].name)}</span>`).join('');
+    const opts = r.opts.map((c, i) => `<button class="opt" data-act="proute" data-i="${i}" ${r.done || r.failed ? 'disabled' : ''}>${esc(c)}</button>`).join('');
+    const sol = sub.routeSolve || r.failed ? CC.Puzzles.solveRoute(r.start, r.target) : null;
+    return `<section class="panel"><h3>🗺️ Plan a synthesis <span class="spacer"></span><small>shortest route: ${r.optimal} steps · strikes ${r.strikes}/3</small></h3>
+      <div class="routehead">${molBox(r.start)}<div class="bigarrow">⟶ ? ⟶</div>${molBox(r.target)}</div>
+      <div class="pathline">${path}</div>
+      ${r.done ? `<div class="report ok"><h4>🎉 Target reached in ${r.path.length - 1} step${r.path.length > 2 ? 's' : ''} ${r.path.length - 1 === r.optimal ? '(optimal!)' : ''} <span class="c-rp">+${CC.fmt(r.rp)} RP</span></h4></div>` : `<div class="center" style="margin:8px 0"><div class="note">Current compound</div>${molBox(r.cur, true)}</div>
+      <div class="note center" style="margin-bottom:6px">Choose reagents & conditions for the next step:</div><div class="opts routeopts">${opts}</div>`}
+      ${r.msg ? `<div class="report ${r.failed ? 'fail' : ''}" style="margin-top:8px">${esc(r.msg)}</div>` : ''}
+      ${sol ? `<div class="learn"><b>A shortest route:</b><br>${sol.map((x) => `${esc(CC.ROUTES.M[x.from].name)} → <i>${esc(x.cond)}</i> → ${esc(CC.ROUTES.M[x.to].name)}`).join('<br>')}</div>` : ''}
+      <div class="row center-row" style="margin-top:12px"><button class="btn ${r.done || r.failed ? 'primary' : ''}" data-act="prouteNew" data-l="2">New route (2+ steps)</button><button class="btn" data-act="prouteNew" data-l="3">New route (3+ steps)</button>${!r.done && !sub.routeSolve ? '<button class="btn" data-act="prouteSolve">Show a solution</button>' : ''}</div></section>`;
+  }
+
   // ───────────────────────── OPTIONS ─────────────────────────
   function opt(k, v, label) {
     return `<button class="btn ${String(S.settings[k]) === String(v) ? 'on' : ''}" data-act="set" data-k="${k}" data-v="${v}">${label}</button>`;
@@ -1003,7 +1176,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       <section class="panel"><h3>⚙️ Gameplay</h3>
         <div class="field"><label>Offline progress (plant keeps running, up to 8 h)</label><div class="seg">${opt('offline', true, 'On')}${opt('offline', false, 'Off')}</div></div>
         <div class="field"><label>Extra confirmations (prestige, hard reset)</label><div class="seg">${opt('confirm', true, 'On')}${opt('confirm', false, 'Off')}</div></div>
-        <div class="field"><label>Hotkeys</label><div class="note">1–8 switch tabs · M = max all reactors · S = save · Space = start / work up in the Lab</div></div>
+        <div class="field"><label>Hotkeys</label><div class="note">1–9 switch tabs · M = max all reactors · S = save · Space = start / work up in the Lab</div></div>
         <button class="btn" data-act="help">How to play</button>
       </section>
     </div>`;

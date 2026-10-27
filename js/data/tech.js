@@ -145,6 +145,20 @@ CC.TECH = [
   { id: 't_deet', name: 'Amide Coupling', icon: '🦟', pos: [8, 3], rp: 5000, money: 120000, req: ['t_lido'], course: 'medchem',
     desc: 'Acid chlorides from thionyl chloride, then amides: make the insect repellent DEET.',
     fx: { recipes: ['toluoylcl', 'deet'] } },
+
+  // ───────── stepped pathways ─────────
+  { id: 't_radical', name: 'Free-Radical Halogenation', icon: '☀️', pos: [1, 2], rp: 10, money: 100, req: ['t_basics'], course: 'halo',
+    desc: 'A UV lamp turns unreactive alkanes into haloalkanes — the first step of many pathways.',
+    fx: { recipes: ['brcy', 'tbubr', 'bnbr'] } },
+  { id: 't_halo', name: 'Haloalkane Reactions', icon: '🔀', pos: [2, 6], rp: 40, money: 400, req: ['t_radical'], course: 'halo',
+    desc: 'Substitution or elimination? Aqueous NaOH, ethanolic KOH, KCN and NH₃ turn haloalkanes into alcohols, alkenes, nitriles and amines.',
+    fx: { recipes: ['cyhex_e2', 'cyhex_sn', 'methylpropene', 'tbuoh_hyd', 'bnoh_sn', 'bncn', 'phenylacetic', 'ethylamine', 'propanenitrile', 'propanoic', 'propylamine'] } },
+  { id: 't_alcohols', name: 'Alkenes, Alcohols & Carbonyls', icon: '🍷', pos: [3, 7], rp: 120, money: 1500, req: ['t_halo', 't_mantle'], course: 'halo',
+    desc: 'Dehydrate, hydrate, add HBr and Br₂, oxidise with dichromate (distil vs reflux), add HCN, and run the classic carbonyl tests.',
+    fx: { recipes: ['ethene', 'etbr_add', 'dbe', 'etoh_hyd', 'ethanal', 'acoh_ox', 'cyanohydrin', 'lactic', 'iodoform', 'dnp'] } },
+  { id: 't_arenes', name: 'Benzene Chemistry', icon: '⌬', pos: [6, 6], rp: 1200, money: 15000, req: ['t_eas'], course: 'aromatic',
+    desc: 'Start from benzene itself: bromination, nitration → phenylamine, Friedel–Crafts, side-chain oxidation, phenol.',
+    fx: { recipes: ['phbr_eas', 'nitrobenzene', 'aniline_red', 'acetophenone_fc', 'benzoic', 'mebz_es', 'tribromophenol'] } },
 ];
 
 CC.TECH_BY_ID = {};

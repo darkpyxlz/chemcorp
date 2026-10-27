@@ -323,3 +323,36 @@ svg.graph { width: 100%; height: auto; display: block; margin: 4px 0; background
 .modal-box ul { padding-left: 20px; }
 .modal-box li { margin-bottom: 6px; }
 .btn.on:hover:not(:disabled), .tabs button.on:hover, .opt.picked:hover:not(:disabled) { background: var(--tab-on); opacity: 0.85; }
+
+/* ── molecules & puzzles ── */
+svg.mol { width: 100%; max-width: 380px; height: auto; }
+.mol .bd { stroke: var(--text); stroke-width: 2; stroke-linecap: round; }
+.mol .al { font: 700 15px var(--mono); fill: var(--text); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 5px; }
+.mol .num { font: 10px var(--mono); fill: var(--rp); text-anchor: middle; }
+.builder { display: flex; flex-direction: column; gap: 4px; }
+.crow { display: grid; grid-template-columns: 34px 1fr; gap: 4px 8px; align-items: center; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--radius); }
+.crow > .row:last-child { grid-column: 2; }
+.bondrow { padding-left: 40px; }
+.mechwrap { border: 1px solid var(--ink); border-radius: var(--radius); background: var(--bg); }
+svg.mech { width: 100%; height: auto; display: block; max-height: 340px; }
+.mech .mb { stroke: var(--text); stroke-width: 2; }
+.mech .ma { font: 700 16px var(--mono); fill: var(--text); text-anchor: middle; }
+.mech .mc { font: 700 14px var(--mono); fill: var(--bad); text-anchor: middle; }
+.mech .md { font: italic 11px var(--mono); fill: var(--muted); text-anchor: middle; }
+.mech .lpd { fill: var(--text); }
+.mech .site { fill: transparent; stroke: transparent; cursor: pointer; }
+.mech .sb { stroke-width: 14; }
+.mech .site:hover { fill: rgba(46, 139, 87, 0.15); stroke: rgba(46, 139, 87, 0.3); }
+.mech .site.sel { fill: rgba(161, 92, 0, 0.25); stroke: rgba(161, 92, 0, 0.6); }
+.mech .arrow { fill: none; stroke: var(--rp); stroke-width: 2.2; }
+.mech .ahead { fill: var(--rp); }
+.routehead { display: flex; justify-content: center; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0; }
+.bigarrow { font-size: 20px; color: var(--muted); }
+.molbox { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; border: 1px solid var(--ink); border-radius: var(--radius); min-width: 170px; background: var(--panel); }
+.molbox svg.mol { width: 200px; }
+.molbox.big { border-width: 2px; }
+.molbox .formula { font-size: 18px; padding: 18px 6px; }
+.pathline { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 8px 0; font-size: 13px; }
+.pathmol { padding: 2px 8px; border: 1px solid var(--ink); border-radius: 3px; }
+.step-arrow small { color: var(--muted); }
+.routeopts { max-width: 620px; margin: 0 auto; }

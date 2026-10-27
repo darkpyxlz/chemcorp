@@ -13,7 +13,7 @@ const ctx = {
 };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/game.js', 'js/lab.js', 'js/school.js']) {
+for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/data/mechanisms.js', 'js/data/routes.js', 'js/game.js', 'js/lab.js', 'js/school.js', 'js/molecule.js', 'js/puzzles.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 }
 const CC = ctx.CC;
@@ -42,7 +42,7 @@ test('recipe references exist', () => {
 test('reagent sets are unique', () => {
   const seen = new Set();
   for (const r of CC.RECIPES) {
-    const k = Object.keys(r.reagents).sort().join('|');
+    const k = Object.keys(r.reagents).sort().join('|') + '@' + (r.app || 'reflux');
     assert(!seen.has(k), `duplicate reagent set ${k}`);
     seen.add(k);
   }
@@ -142,7 +142,7 @@ test('moderate overheating speeds the reaction instead of wrecking it', () => {
 test('half the limiting reagent halves the product', () => {
   const st = S();
   st.inv.acoh = 10; st.inv.etoh = 10;
-  CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('etoh'); CC.Lab.stepEq('acoh', -1);
+  CC.Lab.clear(); CC.Lab.add('acoh'); CC.Lab.add('etoh'); CC.Lab.stepEq('acoh', -1); CC.Lab.stepEq('acoh', -1);
   CC.Lab.setAdditive('a_h2so4'); CC.Lab.start();
   assert(Math.abs(st.lab.run.theo - 0.5) < 1e-9);
   CC.Lab.workup();
@@ -263,6 +263,87 @@ test('rounds build for every category and pay RP with spaced repetition', () => 
   const r2 = CC.School.answer(again, again.qs[0].answer);
   assert(r2.tooSoon && r2.rp === 0, 'too soon');
   assert.strictEqual(CC.School.state().items.fg[id].box, 1);
+});
+
+console.log('Puzzles');
+const Mol = CC.Mol, P = CC.Puzzles;
+function mk(n, subs, db) { const m = Mol.make(n); for (const [i, g] of subs) m.sub[i].push(g); m.db = db || []; return m; }
+test('IUPAC naming of reference molecules', () => {
+  const cases = [[mk(3, [[1, 'OH']]), 'propan-2-ol'], [mk(3, [[1, 'O']]), 'propanone'], [mk(5, [[3, 'O']]), 'pentan-2-one'], [mk(4, [], [2]), 'but-1-ene'],
+    [mk(4, [], [0, 2]), 'buta-1,3-diene'], [mk(5, [[1, 'CH3'], [2, 'CH3']]), '2,3-dimethylpentane'], [mk(2, [[0, 'OH'], [1, 'OH']]), 'ethane-1,2-diol'],
+    [mk(4, [[0, 'OH']], [2]), 'but-3-en-1-ol'], [mk(3, [[1, 'OH'], [2, 'O'], [2, 'OH']]), '2-hydroxypropanoic acid'], [mk(4, [[0, 'Cl'], [3, 'Br']]), '1-bromo-4-chlorobutane'],
+    [mk(6, [[0, 'O'], [0, 'OH'], [5, 'O'], [5, 'OH']]), 'hexanedioic acid'], [mk(5, [[2, 'Cl'], [1, 'CH3']]), '3-chloro-2-methylpentane']];
+  for (const [m, exp] of cases) assert.strictEqual(Mol.name(m), exp);
+});
+test('random molecules are valid, named, and get 3 distinct wrong answers', () => {
+  for (let k = 0; k < 400; k++) {
+    const m = Mol.random(1 + (k % 2));
+    assert(Mol.valid(m));
+    const nm = Mol.name(m);
+    assert(nm && !/undefined|null/.test(nm), nm);
+    const d = Mol.distractors(m, 3);
+    assert(d.length === 3 && new Set(d).size === 3 && !d.includes(nm), nm + ' ' + d);
+    assert(Mol.svg(m).startsWith('<svg'));
+  }
+});
+test('naming is independent of drawing direction', () => {
+  for (let k = 0; k < 300; k++) {
+    const m = Mol.random(2);
+    const r = Mol.make(m.n);
+    r.sub = m.sub.slice().reverse().map((x) => x.slice());
+    r.db = m.db.map((d) => m.n - 2 - d);
+    assert.strictEqual(Mol.name(r), Mol.name(m));
+  }
+});
+test('build puzzle accepts the target and rejects others', () => {
+  const q = P.newBuild();
+  q.mol = Mol.clone(q.target);
+  assert(P.checkBuild(q).ok);
+  const q2 = P.newBuild();
+  q2.mol = Mol.make(q2.target.n === 8 ? 7 : q2.target.n + 1);
+  assert(!P.checkBuild(q2).ok);
+});
+test('mechanism data: every arrow end exists and every mechanism can be solved', () => {
+  for (const m of CC.MECHANISMS) {
+    const st = P.startMech(m.id);
+    while (!st.done) {
+      const step = P.mechStep(st);
+      const ids = new Set(step.atoms.map((a) => a.id));
+      for (const [f, t] of step.arrows) {
+        for (const site of [f, t]) {
+          const [k, id] = site.split(':');
+          if (k === 'lp') assert(step.atoms.find((a) => a.id === id && a.lp), `${m.id}: ${site}`);
+          else if (k === 'b') assert(step.bonds.find((b) => b.id === id), `${m.id}: ${site}`);
+          else assert(ids.has(id), `${m.id}: ${site}`);
+        }
+        assert(f.startsWith('lp:') || f.startsWith('b:'), `${m.id}: arrow must start at electrons`);
+        assert.strictEqual(P.tryArrow(st, f, t), 'ok');
+      }
+      for (const b of step.bonds) assert(ids.has(b.a) && ids.has(b.b), `${m.id}: bond ${b.id}`);
+      P.nextMechStep(st);
+    }
+    assert(st.rp > 0);
+  }
+});
+test('route graph: names match the drawn structures; routes are solvable', () => {
+  const alias = { ethylamine: 'ethanamine' };
+  for (const id in CC.ROUTES.M) {
+    const M = CC.ROUTES.M[id];
+    if (M.mol) assert.strictEqual(alias[M.name] || M.name, Mol.name(P.fromSpec(M.mol)), id);
+  }
+  for (const [a, b] of CC.ROUTES.E) assert(CC.ROUTES.M[a] && CC.ROUTES.M[b], a + '→' + b);
+  for (let k = 0; k < 50; k++) {
+    const r = P.newRoute(2);
+    for (const step of P.solveRoute(r.start, r.target)) P.routeMove(r, step.cond);
+    assert(r.done && r.path.length - 1 === r.optimal && r.rp > 0);
+  }
+});
+test('apparatus picks between distillation and reflux products', () => {
+  const st = S();
+  for (const t of CC.TECH) st.tech[t.id] = true;
+  G.recalc();
+  assert.strictEqual(CC.Lab.match(['etoh', 'k2cr2o7'], 'distil').id, 'ethanal');
+  assert.strictEqual(CC.Lab.match(['etoh', 'k2cr2o7'], 'reflux').id, 'acoh_ox');
 });
 
 console.log(failures ? `\n${failures} test(s) failed` : '\nAll tests passed');

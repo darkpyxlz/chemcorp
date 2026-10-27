@@ -33,9 +33,10 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const s = lab().slots.find((x) => x.id === id);
     if (!s || lab().run) return;
     const i = G.EQ_STEPS.indexOf(s.eq);
-    s.eq = G.EQ_STEPS[CC.clamp((i < 0 ? 2 : i) + dir, 0, G.EQ_STEPS.length - 1)];
+    s.eq = G.EQ_STEPS[CC.clamp((i < 0 ? G.EQ_STEPS.indexOf(1) : i) + dir, 0, G.EQ_STEPS.length - 1)];
   };
   L.setSolvent = (id) => { lab().solvent = id; };
+  L.setApp = (a) => { if (!lab().run) lab().app = a; };
   L.setAdditive = (id) => { lab().additive = id; };
   L.setAtm = function (a) {
     if (G.equip().atms.has(a) && !lab().run) lab().atm = a;
@@ -52,7 +53,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
   };
 
   function snapshot(b) {
-    return { slots: b.slots.map((s) => ({ ...s })), solvent: b.solvent, additive: b.additive, atm: b.atm, set: b.set };
+    return { slots: b.slots.map((s) => ({ ...s })), solvent: b.solvent, additive: b.additive, atm: b.atm, set: b.set, app: b.app };
   }
   function apply(setup) {
     const b = lab();
@@ -60,6 +61,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     b.solvent = setup.solvent;
     b.additive = setup.additive;
     b.atm = G.equip().atms.has(setup.atm) ? setup.atm : 'air';
+    b.app = setup.app || 'reflux';
     L.setTemp(setup.set);
     b.report = null;
   }
@@ -76,6 +78,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       solvent: r.solvents[0],
       additive: r.additive ? r.additive.id : 'none',
       atm: r.atm || 'air',
+      app: r.app || 'reflux',
       set: Math.round((r.temp[0] + r.temp[1]) / 2),
     });
     const miss = [];
@@ -84,15 +87,17 @@ var CC = (globalThis.CC = globalThis.CC || {});
     if (miss.length) G.toast(`Stock ${miss.join(' and ')} in the Market first.`, 'bad');
   };
 
-  L.match = function (ids) {
+  // Same reagents can give different products depending on the apparatus (distil vs reflux).
+  L.match = function (ids, app) {
     const key = [...ids].sort().join('|');
-    return CC.RECIPES.find((r) => Object.keys(r.reagents).sort().join('|') === key) || null;
+    const c = CC.RECIPES.filter((r) => Object.keys(r.reagents).sort().join('|') === key);
+    return c.find((r) => (r.app || 'reflux') === (app || 'reflux')) || c[0] || null;
   };
 
   L.requirements = function () {
     const b = lab();
     const sc = G.scale();
-    const r = L.match(L.slotIds());
+    const r = L.match(L.slotIds(), b.app);
     const reagents = b.slots.map((s) => ({ id: s.id, need: s.eq * sc, have: G.state().inv[s.id] || 0 }));
     const amt = r && r.additive && (b.additive === r.additive.id || (r.alt && r.alt[b.additive])) ? r.additive.amt : 0.1;
     const money = G.solventCost(b.solvent, sc) + G.additiveCost(b.additive, amt, sc);

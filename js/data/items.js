@@ -70,7 +70,7 @@ CC.ITEMS = {};
     { id: 'tbucl', name: 'tert-Butyl chloride', f: '(CH₃)₃CCl', value: 18, color: '#e8f2ff', desc: '2-Chloro-2-methylpropane, a tertiary alkyl halide.' },
     { id: 'bubr', name: '1-Bromobutane', f: 'CH₃(CH₂)₃Br', value: 25, color: '#f0e8ff', desc: 'A primary alkyl bromide — great SN2 substrate.' },
     { id: 'nerolin', name: '2-Butoxynaphthalene', f: 'C₁₀H₇OC₄H₉', value: 85, color: '#f8f1ff', desc: 'An ether with a sweet orange-blossom scent used in perfumery.' },
-    { id: 'cyclohexene', name: 'Cyclohexene', f: 'C₆H₁₀', value: 20, color: '#e9fbff', desc: 'A cyclic alkene (bp 83 °C).' },
+    { id: 'cyclohexene', name: 'Cyclohexene', f: 'C₆H₁₀', value: 65, color: '#e9fbff', desc: 'A cyclic alkene (bp 83 °C).' },
     { id: 'benzhydrol', name: 'Diphenylmethanol', f: '(C₆H₅)₂CHOH', value: 80, color: '#fafafa', desc: 'Benzhydrol — a secondary alcohol and pharmaceutical building block.' },
     { id: 'phmgbr', name: 'Phenylmagnesium bromide', f: 'C₆H₅MgBr', value: 0, sellable: false, color: '#9a8f7a', desc: 'A Grignard reagent. Destroyed by air and water — use it, don\'t ship it.' },
     { id: 'trityl_oh', name: 'Triphenylmethanol', f: '(C₆H₅)₃COH', value: 240, color: '#ffffff', desc: 'A tertiary alcohol made by Grignard addition.' },
@@ -235,6 +235,52 @@ CC.ITEMS = {};
     { id: 'a_sb2o3', name: 'Antimony trioxide', f: 'Sb₂O₃', unlock: 8000, use: 40, desc: 'The industrial PET polycondensation catalyst.' },
     { id: 'a_pdoac', name: 'Palladium(II) acetate', f: 'Pd(OAc)₂', unlock: 30000, use: 1800, desc: 'The workhorse Heck-reaction catalyst.' },
     { id: 'a_pdcu', name: 'PdCl₂(PPh₃)₂ / CuI', f: 'Pd/Cu', unlock: 40000, use: 2000, desc: 'Palladium + copper co-catalyst for Sonogashira couplings.' },
+  ]);
+
+
+  // ───────── expansion 2: stepped A-level style pathways ─────────
+  reg('reagent', [
+    { id: 'cyclohexane', name: 'Cyclohexane', f: 'C₆H₁₂', cost: 3, desc: 'A cycloalkane — saturated and unreactive.' },
+    { id: 'isobutane', name: '2-Methylpropane', f: '(CH₃)₃CH', cost: 2, desc: 'Isobutane: an alkane with one tertiary C–H.' },
+    { id: 'toluene', name: 'Methylbenzene', f: 'C₆H₅CH₃', cost: 2, desc: 'Toluene, as a reagent. Its CH₃ is a benzylic position.' },
+    { id: 'br2', name: 'Bromine', f: 'Br₂', cost: 6, color: '#b45309', desc: 'A red-brown, corrosive liquid halogen.' },
+    { id: 'hbr', name: 'Hydrogen bromide', f: 'HBr', cost: 3, desc: 'A strong acid gas.' },
+    { id: 'kcn', name: 'Potassium cyanide', f: 'KCN', cost: 5, desc: 'Source of the cyanide nucleophile. Extremely toxic.' },
+    { id: 'lialh4', name: 'Lithium aluminium hydride', f: 'LiAlH₄', cost: 50, desc: 'A powerful hydride reductant. Reacts violently with water.' },
+    { id: 'k2cr2o7', name: 'Potassium dichromate', f: 'K₂Cr₂O₇', cost: 6, color: '#f97316', desc: 'Orange oxidant; turns green (Cr³⁺) when it oxidises something.' },
+    { id: 'i2', name: 'Iodine', f: 'I₂', cost: 10, color: '#4c1d95', desc: 'A purple-black solid halogen.' },
+    { id: 'benzene', name: 'Benzene', f: 'C₆H₆', cost: 3, desc: 'The parent aromatic hydrocarbon. Carcinogenic.' },
+    { id: 'sn', name: 'Tin', f: 'Sn', cost: 8, color: '#cbd5e1', desc: 'A metal reducing agent (with HCl).' },
+    { id: 'accl', name: 'Ethanoyl chloride', f: 'CH₃COCl', cost: 6, desc: 'Acetyl chloride — a reactive acyl chloride.' },
+    { id: 'dnph', name: '2,4-Dinitrophenylhydrazine', f: '(O₂N)₂C₆H₃NHNH₂', cost: 25, color: '#f59e0b', desc: "Brady's reagent: tests for C=O groups." },
+  ]);
+
+  reg('product', [
+    { id: 'bromocyclohexane', name: 'Bromocyclohexane', f: 'C₆H₁₁Br', value: 35, color: '#fff7ed', desc: 'A secondary haloalkane.' },
+    { id: 'tbubr', name: '2-Bromo-2-methylpropane', f: '(CH₃)₃CBr', value: 30, color: '#fff7ed', desc: 'A tertiary haloalkane.' },
+    { id: 'bnbr', name: '(Bromomethyl)benzene', f: 'C₆H₅CH₂Br', value: 30, color: '#fff7ed', desc: 'Benzyl bromide — a lachrymator (tear gas).' },
+    { id: 'methylpropene', name: '2-Methylpropene', f: '(CH₃)₂C=CH₂', value: 50, color: '#f0f9ff', desc: 'Isobutylene — an alkene gas.' },
+    { id: 'ethene', name: 'Ethene', f: 'CH₂=CH₂', value: 13, color: '#f0f9ff', desc: 'The simplest alkene; the world\'s top petrochemical.' },
+    { id: 'ethanal', name: 'Ethanal', f: 'CH₃CHO', value: 25, color: '#f0f9ff', desc: 'Acetaldehyde (bp 21 °C).' },
+    { id: 'cyanohydrin', name: '2-Hydroxypropanenitrile', f: 'CH₃CH(OH)CN', value: 55, color: '#f8fafc', desc: 'A hydroxynitrile (cyanohydrin).' },
+    { id: 'lactic', name: '2-Hydroxypropanoic acid', f: 'CH₃CH(OH)COOH', value: 90, color: '#fefce8', desc: 'Lactic acid — monomer of PLA.' },
+    { id: 'dbe', name: '1,2-Dibromoethane', f: 'BrCH₂CH₂Br', value: 40, color: '#fff7ed', desc: 'The product that forms when ethene decolourises bromine.' },
+    { id: 'ethylamine', name: 'Ethylamine', f: 'CH₃CH₂NH₂', value: 45, color: '#f8fafc', desc: 'Ethanamine — a primary amine.' },
+    { id: 'propanenitrile', name: 'Propanenitrile', f: 'CH₃CH₂CN', value: 40, color: '#f8fafc', desc: 'A nitrile: one carbon longer than the haloalkane it came from.' },
+    { id: 'propanoic', name: 'Propanoic acid', f: 'CH₃CH₂COOH', value: 70, color: '#f8fafc', desc: 'A preservative (E280).' },
+    { id: 'propylamine', name: 'Propan-1-amine', f: 'CH₃CH₂CH₂NH₂', value: 150, color: '#f8fafc', desc: 'Propylamine — a primary amine.' },
+    { id: 'bncn', name: 'Phenylacetonitrile', f: 'C₆H₅CH₂CN', value: 60, color: '#f8fafc', desc: 'Benzyl cyanide.' },
+    { id: 'phenylacetic', name: 'Phenylacetic acid', f: 'C₆H₅CH₂COOH', value: 100, color: '#ffffff', desc: 'Precursor to penicillin G.' },
+    { id: 'iodoform', name: 'Triiodomethane', f: 'CHI₃', value: 110, color: '#facc15', desc: 'Iodoform: yellow crystals with an antiseptic smell.' },
+    { id: 'nitrobenzene', name: 'Nitrobenzene', f: 'C₆H₅NO₂', value: 30, color: '#fef3c7', desc: 'A pale yellow oil smelling of almonds.' },
+    { id: 'benzoic', name: 'Benzoic acid', f: 'C₆H₅COOH', value: 55, color: '#ffffff', desc: 'A food preservative (E210).' },
+    { id: 'dnp_hydrazone', name: 'Propanone 2,4-DNP-hydrazone', f: 'C₉H₁₀N₄O₄', value: 80, color: '#f97316', desc: "The orange precipitate of Brady's test." },
+    { id: 'tribromophenol', name: '2,4,6-Tribromophenol', f: 'C₆H₂Br₃OH', value: 65, color: '#ffffff', desc: 'The white precipitate from phenol + bromine water.' },
+  ]);
+
+  reg('additive', [
+    { id: 'a_uv', name: 'UV lamp (hν)', f: 'hν', unlock: 120, use: 0.5, always: true, desc: 'Ultraviolet light splits halogen molecules into radicals.' },
+    { id: 'a_febr3', name: 'Iron(III) bromide', f: 'FeBr₃', unlock: 300, use: 3, desc: 'A halogen carrier: polarises Br₂ into an electrophile.' },
   ]);
 
   CC.ITEM_LIST = Object.values(CC.ITEMS);
