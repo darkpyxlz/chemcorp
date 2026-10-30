@@ -124,16 +124,16 @@ var CC = (globalThis.CC = globalThis.CC || {});
 
   // ───────── kinetics ─────────
   // ~90% conversion at 4 × r.time for a perfect 1:1 run; technicians and mastery speed it up.
-  L.k0 = (r) => ((Object.keys(r.reagents).length === 1 ? 2.3 : 9) / (r.time * 4)) * (r.eqm ? 0.3 : 1) * G.manualSpeed() * (1 + 0.06 * G.mastery(r.id));
+  L.k0 = (r) => ((Object.keys(r.reagents).length === 1 ? 2.3 : 9) / (r.time * 4)) * (r.eqm ? 0.3 : 1) * G.manualSpeed() * (1 + 0.1 * G.kh('kin')) * (1 + 0.06 * G.mastery(r.id));
   L.mid = (r) => (r.temp[0] + r.temp[1]) / 2;
   L.kT = (r, T) => Math.pow(2, (T - L.mid(r)) / 10);
   // Rate constant for product destruction (side reactions / decomposition) above the window.
   L.kSide = function (r, T) {
     if (T <= r.temp[1]) return 0;
-    return L.k0(r) * (r.strict ? 0.5 : 0.01) * (Math.pow(2, (T - r.temp[1]) / 10) - 1);
+    return L.k0(r) * (r.strict ? 0.5 : 0.01) * (1 - 0.15 * G.kh('safety')) * (Math.pow(2, (T - r.temp[1]) / 10) - 1);
   };
   // Isolation efficiency at work-up (filtration, recrystallisation losses).
-  L.isolation = (r) => Math.min(0.99, (r.eqm ? 0.95 : Math.min(0.98, r.yield / 0.9)) * G.yieldMult(r));
+  L.isolation = (r) => Math.min(0.99, (r.eqm ? 0.95 : Math.min(0.98, r.yield / 0.9)) * G.yieldMult(r) * (1 + 0.02 * G.kh('pur')));
 
   // d(extent)/dt at temperature T for run state {a, xi}.
   function rates(run, r, T) {
@@ -318,13 +318,11 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const success = y >= 0.3 && made >= 0.3;
     const rec = G.rec(r.id);
     const first = success && rec.runs < 1;
-    let rp = 0;
+    const rp = 0; // RP only comes from learning (Academy, Chem School, Puzzles)
     if (success) {
       const before = G.mastery(r.id);
       rec.runs += 1;
       rec.manual += 1;
-      rp = r.rp * y * G.rpMult() + (first ? r.rp * 10 : 0);
-      G.gainRp(rp);
       if (!first && G.mastery(r.id) > before) G.toast(`${r.name} reached mastery ★${G.mastery(r.id)}`, 'good');
       if (G.runs(r.id) === G.automateAt(r) && G.flag('automation')) G.toast(`${r.name} can now be automated in the Plant!`, 'good');
     } else S.stats.failed++;

@@ -15,8 +15,17 @@ var CC = (globalThis.CC = globalThis.CC || {});
     return S.puzzles;
   };
   const scale = () => (CC.School ? CC.School.scale() : 1);
+  // Repeated solving in a short burst pays less (half value after ~8 in 30 minutes).
+  P.fatigue = function () {
+    const st = P.state();
+    const now = Date.now();
+    st.recent = (st.recent || []).filter((t) => now - t < 30 * 60e3);
+    return 1 / (1 + st.recent.length / 8);
+  };
   function pay(base) {
-    const rp = base * scale();
+    const st0 = P.state();
+    const rp = base * scale() * P.fatigue();
+    st0.recent.push(Date.now());
     G.gainRp(rp);
     P.state().rp += rp;
     G.dirty();

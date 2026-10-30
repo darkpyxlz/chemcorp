@@ -283,6 +283,45 @@ CC.ITEMS = {};
     { id: 'a_febr3', name: 'Iron(III) bromide', f: 'FeBr₃', unlock: 300, use: 3, desc: 'A halogen carrier: polarises Br₂ into an electrophile.' },
   ]);
 
+
+  // ───────── expansion 3: filling the map ─────────
+  reg('reagent', [
+    { id: 'nash', name: 'Sodium hydrosulfide', f: 'NaSH', cost: 4, desc: 'Source of the HS⁻ nucleophile. Smells of rotten eggs.' },
+    { id: 'tollens', name: "Tollens' reagent", f: '[Ag(NH₃)₂]⁺', cost: 8, desc: 'Ammoniacal silver nitrate — a gentle oxidant that plates out a silver mirror.' },
+    { id: 'ipa', name: 'Propan-2-ol', f: 'CH₃CH(OH)CH₃', cost: 2, desc: 'Isopropyl alcohol — a secondary alcohol.' },
+    { id: 'dryice', name: 'Dry ice', f: 'CO₂(s)', cost: 1, desc: 'Solid carbon dioxide (−78 °C) — an electrophile for Grignards.' },
+    { id: 'oleum', name: 'Fuming sulfuric acid', f: 'H₂SO₄·SO₃', cost: 4, desc: 'Oleum: sulfuric acid with dissolved SO₃, the sulfonating electrophile.' },
+    { id: 'cubr', name: 'Copper(I) bromide', f: 'CuBr', cost: 12, desc: 'The Sandmeyer reagent.' },
+    { id: 'vcm', name: 'Chloroethene', f: 'CH₂=CHCl', cost: 3, desc: 'Vinyl chloride monomer.' },
+    { id: 'tpcl', name: 'Terephthaloyl chloride', f: 'C₆H₄(COCl)₂', cost: 30, desc: 'An aromatic diacid chloride.' },
+    { id: 'ppd', name: 'Benzene-1,4-diamine', f: 'C₆H₄(NH₂)₂', cost: 25, desc: 'p-Phenylenediamine — an aromatic diamine.' },
+    { id: 'hcho', name: 'Methanal (formalin)', f: 'HCHO', cost: 2, desc: 'Formaldehyde as a 37% aqueous solution.' },
+  ]);
+  reg('product', [
+    { id: 'butanethiol', name: 'Butane-1-thiol', f: 'CH₃(CH₂)₃SH', value: 50, color: '#fefce8', desc: 'A thiol — part of skunk spray.' },
+    { id: 'diethylether', name: 'Ethoxyethane', f: 'C₂H₅OC₂H₅', value: 50, color: '#f0f9ff', desc: 'Diethyl ether — once the classic anaesthetic.' },
+    { id: 'acetal', name: '1,1-Diethoxyethane', f: 'CH₃CH(OC₂H₅)₂', value: 55, color: '#f0f9ff', desc: 'An acetal: an aldehyde protected from nucleophiles.' },
+    { id: 'silver', name: 'Silver (mirror)', f: 'Ag', value: 30, color: '#d1d5db', desc: 'Metallic silver from the Tollens test.' },
+    { id: 'acetonecn', name: '2-Hydroxy-2-methylpropanenitrile', f: '(CH₃)₂C(OH)CN', value: 35, color: '#f8fafc', desc: 'Acetone cyanohydrin — the route to Perspex (MMA).' },
+    { id: 'ethanamide', name: 'Ethanamide', f: 'CH₃CONH₂', value: 25, color: '#ffffff', desc: 'Acetamide, a primary amide.' },
+    { id: 'nethylamide', name: 'N-Ethylethanamide', f: 'CH₃CONHC₂H₅', value: 145, color: '#ffffff', desc: 'A secondary (N-substituted) amide.' },
+    { id: 'phenylacetate', name: 'Phenyl ethanoate', f: 'CH₃COOC₆H₅', value: 40, color: '#fefce8', desc: 'Phenols are esterified with acyl chlorides, not acids.' },
+    { id: 'aminonitrile', name: '2-Aminopropanenitrile', f: 'CH₃CH(NH₂)CN', value: 60, color: '#f8fafc', desc: 'The Strecker intermediate.' },
+    { id: 'alanine', name: 'Alanine', f: 'CH₃CH(NH₂)COOH', value: 100, color: '#ffffff', desc: 'An amino acid (made racemic here).' },
+    { id: 'sulfonic', name: 'Benzenesulfonic acid', f: 'C₆H₅SO₃H', value: 25, color: '#ffffff', desc: 'A strong organic acid; detergent precursor.' },
+    { id: 'ethylbenzoate', name: 'Ethyl benzoate', f: 'C₆H₅COOC₂H₅', value: 110, color: '#fefce8', desc: 'A fruity aromatic ester.' },
+    { id: 'pvc', name: 'PVC', f: '[–CH₂CHCl–]ₙ', value: 25, color: '#f5f5f5', desc: 'Poly(chloroethene) — pipes and window frames.' },
+    { id: 'kevlar', name: 'Kevlar', f: '[–NHC₆H₄NHCOC₆H₄CO–]ₙ', value: 220, color: '#facc15', desc: 'An aromatic polyamide five times stronger than steel by weight.' },
+    { id: 'bakelite', name: 'Bakelite', f: '(C₆H₆O·CH₂O)ₙ', value: 30, color: '#92400e', desc: 'The first fully synthetic plastic (1907): a phenol–methanal resin.' },
+  ]);
+  reg('solvent', [
+    { id: 's_nmp', name: 'N-Methylpyrrolidone', f: 'NMP', unlock: 1500, use: 3, desc: 'Polar aprotic, bp 202 °C. Dissolves rigid polymers like Kevlar.' },
+  ]);
+  reg('additive', [
+    { id: 'a_lindlar', name: 'Lindlar catalyst', f: 'Pd/CaCO₃/Pb', unlock: 12000, use: 300, desc: 'A "poisoned" palladium catalyst that stops alkyne hydrogenation at the cis-alkene.' },
+    { id: 'a_pdc', name: 'Palladium on carbon', f: 'Pd/C', unlock: 15000, use: 400, desc: 'The everyday hydrogenation catalyst.' },
+  ]);
+
   CC.ITEM_LIST = Object.values(CC.ITEMS);
 
   // 'none' is a valid choice for both the solvent and additive slots.

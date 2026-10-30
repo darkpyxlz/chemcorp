@@ -120,6 +120,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     fulfil: (d) => G.fulfil(+d.id),
     buyAmt: (d) => { sub.buyAmt = +d.q; },
     upg: (d) => G.buyUpgrade(d.id),
+    know: (d) => G.buyKnow(d.id),
     // plant
     reactor: (d) => G.buildReactor(d.id),
     rtoggle: (d) => G.toggleReactor(d.id),
@@ -417,6 +418,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
         <li><b>🧪 Lab</b> — click reagents on your shelf to add them to the flask, set their <b>equivalents</b>, pick a <b>solvent</b>, <b>catalyst</b>, <b>atmosphere</b> and <b>bath temperature</b>, then start. Watch the yield-vs-time graph: hotter is faster (rate doubles every 10 °C) but overheating causes side reactions, and exothermic reactions heat themselves. <b>Work up</b> when the curve flattens — waiting longer gives more product, with diminishing returns.</li>
         <li>The <b>Notebook</b> (right column) gives hints for every reaction you've researched. Get one right and the full procedure is recorded so you can load it in one click.</li>
         <li><b>🏪 Market</b> — buy reagents, stock solvents/catalysts, sell products and fill contracts. Selling a lot of one product lowers its price for a while — diversify!</li>
+        <li><b>🧠 Research Points come only from learning.</b> Running reactions earns money; RP (for research and Know-how) comes from the Academy, Chem School and Puzzles.</li>
         <li><b>🎓 Academy</b> — <b>Chem School</b> rounds (functional groups, naming, reactions, conditions) pay RP and use spaced repetition: each item needs 10 reviews, spread out over days, to be learned. <b>Courses</b> teach the theory and unlock research.</li>
         <li><b>🔬 Research</b> — spend RP and money to unlock reactions and equipment.</li>
         <li><b>🏭 Plant</b> — once you've run a reaction enough times by hand, build reactors that run it automatically, even while you're away.</li>
@@ -702,7 +704,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
           const it = CC.ITEMS[c.item];
           return `<div class="contract"><div class="row between"><b>${esc(c.client)}</b><small>⏱ <span data-live="ct:${c.id}"></span></small></div>
             <div>Wants <b>${qty(c.qty)} mol</b> ${esc(it.name)} <small>(have <span data-live="inv:${c.item}">${qty(S.inv[c.item])}</span>)</small></div>
-            <div>Pays <b class="c-money">${CC.money(c.reward)}</b> + <span class="c-rp">${CC.fmt(c.rp)} RP</span> <small>(market: ${CC.money(G.price(c.item) * c.qty)})</small></div>
+            <div>Pays <b class="c-money">${CC.money(c.reward)}</b> <small>(market: ${CC.money(G.price(c.item) * c.qty)})</small></div>
             <button class="btn primary sm" data-act="fulfil" data-id="${c.id}" data-inv="${c.item}@${c.qty}">Deliver</button></div>`;
         }).join('')}</div>`
       : '<div class="empty">No open contracts. Clients post orders for products you know how to make every minute or two.</div>';
@@ -767,7 +769,16 @@ var CC = (globalThis.CC = globalThis.CC || {});
         ${maxed ? '<span class="u-cost">MAXED</span>' : `<span class="u-next">${esc(u.next(l))}</span><span class="u-cost">Cost: ${CC.money(c)}</span>`}
       </button>`;
     }).join('');
-    return `<section class="panel"><h3>🛠️ Lab upgrades</h3><div class="note center" style="margin-bottom:14px">Spend money to make your whole operation bigger and faster.</div><div class="upggrid">${cards}</div></section>`;
+    const know = G.KNOWHOW.map((k) => {
+      const l = G.kh(k.id);
+      const maxed = l >= k.max;
+      const c = k.cost(l);
+      return `<button class="upgbtn know ${maxed ? 'bought' : ''}" data-act="know" data-id="${k.id}" ${maxed ? 'disabled data-lock="1"' : `data-rp="${c}"`}>
+        <span class="u-ic">${k.icon}</span><b>${esc(k.name)}</b><span class="u-desc">${esc(k.desc(l))}</span>
+        <span class="u-lv">Level ${l} / ${k.max}</span>${maxed ? '<span class="u-cost">MAXED</span>' : `<span class="u-cost c-rp">Cost: ${CC.fmt(c)} RP</span>`}</button>`;
+    }).join('');
+    return `<section class="panel"><h3>🛠️ Lab upgrades</h3><div class="note center" style="margin-bottom:14px">Spend money to make your whole operation bigger and faster.</div><div class="upggrid">${cards}</div></section>
+      <section class="panel"><h3>🧠 Know-how <span class="spacer"></span><small class="c-rp">${CC.fmt(S.rp)} RP</small></h3><div class="note center" style="margin-bottom:14px">Techniques you can only learn: these cost Research Points, which you earn exclusively from the Academy, Chem School and Puzzles.</div><div class="upggrid">${know}</div></section>`;
   }
 
   // ───────────────────────── PLANT ─────────────────────────
@@ -904,7 +915,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
           <div class="note" style="margin-top:6px">${res.learnedNow ? '🌟 Learned for good!' : !res.correct ? `Dropped back to review ${res.box}/${K.LEARN_BOX} — it will come up again soon.` : res.tooSoon ? 'Answered too soon after the last review — no RP and no progress. Come back when it is due.' : `Review ${res.box}/${K.LEARN_BOX}` + (res.box < K.LEARN_BOX ? ` · next counting review in ${CC.time(res.next / 1000)}` : '')}</div>
           <div class="row" style="margin-top:8px"><button class="btn primary" data-act="schoolNext">${res.last ? 'See results' : 'Next question →'}</button></div></div>` : '';
       return `<section class="panel"><div class="row between"><h3 style="margin:0">${cat.icon} ${esc(cat.name)} · ${qi + 1}/${rd.qs.length}</h3><span class="row">${rd.streak >= 2 ? `<span class="tag warn">🔥 streak ${rd.streak}</span>` : ''}<span class="tag c-rp">+${CC.fmt(rd.earned)} RP</span><button class="btn sm" data-act="schoolQuit">Quit</button></span></div>
-        <div class="q" style="margin-top:12px"><div class="qt" style="font-size:16px">${esc(q.prompt)}</div>${q.formula ? `<div class="eq-wrap" style="font-size:20px;text-align:center">${esc(q.formula)}</div>` : ''}<div class="opts">${opts}</div></div>${fb}</section>`;
+        <div class="q" style="margin-top:12px"><div class="qt" style="font-size:16px">${esc(q.prompt)}</div>${q.fig ? `<div class="qfig">${rich(q.fig, { bare: true })}</div>` : ''}${q.formula ? `<div class="eq-wrap" style="font-size:20px;text-align:center">${esc(q.formula)}</div>` : ''}<div class="opts">${opts}</div></div>${fb}</section>`;
     }
     const due = K.dueCount();
     const cards = ['mixed', 'fg', 'name', 'rxn', 'cond', 'acad'].map((c) => {
@@ -955,6 +966,28 @@ var CC = (globalThis.CC = globalThis.CC || {});
       <div class="cards">${cards}</div></section></div>`;
   }
 
+  // Lesson/quiz markup tokens → diagrams: [[fig:name]], [[mol:spec]], [[mech:id:step]]
+  function rich(html, opts) {
+    opts = opts || {};
+    return String(html).replace(/\[\[(fig|mol|mech):([^\]]+)\]\]/g, (all, kind, arg) => {
+      try {
+        if (kind === 'fig') {
+          const f = CC.FIGS[arg];
+          const vb = /viewBox="0 0 (\d+)/.exec(f && f.svg);
+          return f ? `<figure class="fig" style="width:min(100%, ${vb ? Math.round(+vb[1] * 1.1) + 24 : 380}px)">${f.svg}${opts.bare ? '' : `<figcaption>${esc(f.cap)}</figcaption>`}</figure>` : '';
+        }
+        if (kind === 'mol') {
+          const m = CC.Mol.parse(arg);
+          return `<figure class="fig molfig">${CC.Mol.svg(m, { w: 300, h: 140 })}<figcaption>${opts.bare ? '' : `<b>${esc(CC.Mol.name(m))}</b> · `}${esc(CC.Mol.condensed(m))}</figcaption></figure>`;
+        }
+        const [id, k] = arg.split(':');
+        const m = CC.MECH[id], step = m.steps[+k || 0];
+        return `<figure class="fig mechfig">${mechSvg(step, { static: true, drawn: opts.bare ? [] : step.arrows || [] })}<figcaption><b>${esc(m.name)}</b>${m.steps.filter((x) => x.arrows).length > 1 ? ` — step ${(+k || 0) + 1}` : ''}${opts.bare ? '' : ': ' + esc(step.explain || step.text)}</figcaption></figure>`;
+      } catch (e) { return ''; }
+    });
+  }
+  U.rich = rich;
+
   function renderCourse() {
     const c = CC.COURSE[sub.course];
     const st = G.course(c.id);
@@ -965,7 +998,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     if (!sub.quiz) {
       const l = c.lessons[sub.lesson];
       const last = sub.lesson === c.lessons.length - 1;
-      body = `<h2>${esc(l.t)}</h2><div class="lesson">${l.b}</div>
+      body = `<h2>${esc(l.t)}</h2><div class="lesson">${rich(l.b)}</div>
         <div class="row">${last ? `<button class="btn primary" data-act="quiz" ${done ? '' : 'disabled'}>Take the quiz →</button>` : `<button class="btn primary" data-act="lesson" data-i="${sub.lesson + 1}">Next lesson →</button>`}</div>`;
     } else {
       const res = sub.result;
@@ -976,7 +1009,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
           else if (sub.answers[qi] === oi) cls = 'picked';
           return `<button class="opt ${cls}" data-act="pick" data-q="${qi}" data-o="${oi}" ${res ? 'disabled' : ''}>${esc(o)}</button>`;
         }).join('');
-        return `<div class="q"><div class="qt">${qi + 1}. ${esc(q.q)}</div><div class="opts">${opts}</div>${res ? `<div class="explain">${sub.answers[qi] === q.a ? '✅' : '❌'} ${esc(q.e)}</div>` : ''}</div>`;
+        return `<div class="q"><div class="qt">${qi + 1}. ${esc(q.q)}</div>${q.fig ? `<div class="qfig">${rich(q.fig, { bare: true })}</div>` : ''}<div class="opts">${opts}</div>${res ? `<div class="explain">${sub.answers[qi] === q.a ? '✅' : '❌'} ${esc(q.e)}</div>` : ''}</div>`;
       }).join('');
       const all = c.quiz.every((_, i) => sub.answers[i] != null);
       const summary = res
@@ -1207,7 +1240,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       const nx = -uy, ny = ux;
       const offs = b.o === 2 ? [-3, 3] : b.o === 3 ? [-4, 0, 4] : [0];
       for (const f of offs) o += `<line x1="${p1[0] + nx * f}" y1="${p1[1] + ny * f}" x2="${p2[0] + nx * f}" y2="${p2[1] + ny * f}" class="mb"/>`;
-      if (step.arrows) o += `<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" class="site sb ${st && st.pending === 'b:' + b.id ? 'sel' : ''}" data-act="msite" data-site="b:${b.id}"><title>bond</title></line>`;
+      if (step.arrows && !(st && st.static)) o += `<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" class="site sb ${st && st.pending === 'b:' + b.id ? 'sel' : ''}" data-act="msite" data-site="b:${b.id}"><title>bond</title></line>`;
     }
     for (const a of step.atoms) {
       if (a.t) o += `<text x="${a.x}" y="${a.y + 5}" class="ma">${a.t}</text>`;
@@ -1217,9 +1250,9 @@ var CC = (globalThis.CC = globalThis.CC || {});
         const [lx, ly] = [a.x + a.lp[0], a.y + a.lp[1]];
         const horiz = Math.abs(a.lp[1]) > Math.abs(a.lp[0]);
         o += `<circle cx="${lx + (horiz ? -3 : 0)}" cy="${ly + (horiz ? 0 : -3)}" r="1.8" class="lpd"/><circle cx="${lx + (horiz ? 3 : 0)}" cy="${ly + (horiz ? 0 : 3)}" r="1.8" class="lpd"/>`;
-        if (step.arrows) o += `<circle cx="${lx}" cy="${ly}" r="9" class="site sl ${st && st.pending === 'lp:' + a.id ? 'sel' : ''}" data-act="msite" data-site="lp:${a.id}"><title>lone pair</title></circle>`;
+        if (step.arrows && !(st && st.static)) o += `<circle cx="${lx}" cy="${ly}" r="9" class="site sl ${st && st.pending === 'lp:' + a.id ? 'sel' : ''}" data-act="msite" data-site="lp:${a.id}"><title>lone pair</title></circle>`;
       }
-      if (step.arrows && a.t) o += `<circle cx="${a.x}" cy="${a.y}" r="13" class="site sa" data-act="msite" data-site="a:${a.id}"><title>${a.t}</title></circle>`;
+      if (step.arrows && a.t && !(st && st.static)) o += `<circle cx="${a.x}" cy="${a.y}" r="13" class="site sa" data-act="msite" data-site="a:${a.id}"><title>${a.t}</title></circle>`;
     }
     for (const [f, t] of (st && st.drawn) || []) {
       const p = pt(f);

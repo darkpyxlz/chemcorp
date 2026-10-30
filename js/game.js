@@ -6,25 +6,25 @@ var CC = (globalThis.CC = globalThis.CC || {});
   const SAVE_KEY = 'chemcorp-save-v1';
   const OFFLINE_CAP = 8 * 3600;
   const DEMAND_FLOOR = 0.2;
-  const DEMAND_RECOVERY = 0.01; // fraction of the gap recovered per second
-  const MARKET_SIZE = 150; // batches a market absorbs before prices fall to the floor
-  const AUTO_TIME = 1.5; // automated cycle = manual time × this
+  const DEMAND_RECOVERY = 0.006; // fraction of the gap recovered per second
+  const MARKET_SIZE = 80; // batches a market absorbs before prices fall to the floor
+  const AUTO_TIME = 2.5; // automated cycle = manual time × this
   const AUTOBUY_FEE = 1.1;
 
   G.SCALES = [
     { n: 1, name: '100 mL round-bottom flask', cost: 0 },
-    { n: 2, name: '250 mL round-bottom flask', cost: 120 },
-    { n: 5, name: '1 L round-bottom flask', cost: 700 },
-    { n: 10, name: '2 L three-neck flask', cost: 3500 },
-    { n: 25, name: '5 L jacketed reactor', cost: 18000 },
-    { n: 50, name: '20 L jacketed reactor', cost: 90000 },
-    { n: 100, name: '50 L kilo-lab reactor', cost: 450000 },
-    { n: 250, name: '200 L pilot plant', cost: 2.5e6 },
-    { n: 500, name: '1,000 L production vessel', cost: 1.5e7 },
-    { n: 1000, name: '5,000 L production vessel', cost: 1e8 },
+    { n: 2, name: '250 mL round-bottom flask', cost: 300 },
+    { n: 5, name: '1 L round-bottom flask', cost: 1750 },
+    { n: 10, name: '2 L three-neck flask', cost: 8750 },
+    { n: 25, name: '5 L jacketed reactor', cost: 45000 },
+    { n: 50, name: '20 L jacketed reactor', cost: 225000 },
+    { n: 100, name: '50 L kilo-lab reactor', cost: 1125000 },
+    { n: 250, name: '200 L pilot plant', cost: 6250000 },
+    { n: 500, name: '1,000 L production vessel', cost: 37500000 },
+    { n: 1000, name: '5,000 L production vessel', cost: 250000000 },
   ];
   G.MASTERY = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500];
-  G.AUTOMATE_AT = [0, 5, 8, 10, 12, 15, 20];
+  G.AUTOMATE_AT = [0, 10, 15, 20, 25, 30, 40];
   G.EQ_STEPS = [0.25, 1 / 3, 0.5, 2 / 3, 1, 1.5, 2, 3, 4, 5, 6, 7, 8];
   G.ATMS = {
     air: { name: 'Air', icon: '🌬️' },
@@ -39,19 +39,44 @@ var CC = (globalThis.CC = globalThis.CC || {});
       cost: (l) => (G.SCALES[l + 1] ? G.SCALES[l + 1].cost : Infinity),
       desc: (l) => `Every batch (manual and automated) uses ×${G.SCALES[l].n} the reagents and makes ×${G.SCALES[l].n} the product. Current: ${G.SCALES[l].name}.`,
       next: (l) => (G.SCALES[l + 1] ? `Upgrade to ${G.SCALES[l + 1].name} (×${G.SCALES[l + 1].n})` : '') },
-    { id: 'techs', name: 'Lab technicians', icon: '🧑‍🔬', max: 20, cost: (l) => 60 * Math.pow(1.7, l),
+    { id: 'techs', name: 'Lab technicians', icon: '🧑‍🔬', max: 20, cost: (l) => 150 * Math.pow(1.8, l),
       desc: (l) => `Manual reactions run ${15 * l}% faster.`, next: () => '+15% manual speed' },
-    { id: 'sales', name: 'Sales team', icon: '📈', max: 60, cost: (l) => 150 * Math.pow(1.75, l),
+    { id: 'sales', name: 'Sales team', icon: '📈', max: 60, cost: (l) => 400 * Math.pow(1.85, l),
       desc: (l) => `+${6 * l}% on all sale prices.`, next: () => '+6% sale prices' },
-    { id: 'marketing', name: 'Marketing', icon: '📣', max: 40, cost: (l) => 400 * Math.pow(1.8, l),
+    { id: 'marketing', name: 'Marketing', icon: '📣', max: 40, cost: (l) => 1000 * Math.pow(1.9, l),
       desc: (l) => `Markets absorb ${25 * l}% more product before prices drop.`, next: () => '+25% market size' },
-    { id: 'postdoc', name: 'Postdoctoral researchers', icon: '🎓', max: 200, cost: (l) => 200 * Math.pow(1.45, l),
-      desc: (l) => `Generate ${CC.fmt(0.2 * l)} RP per second.`, next: () => '+0.2 RP/s' },
-    { id: 'rotavap', name: 'Rotary evaporator', icon: '🌀', max: 1, cost: () => 600,
+    { id: 'library', name: 'Library subscriptions', icon: '📚', max: 20, cost: (l) => 500 * Math.pow(2.2, l),
+      desc: (l) => `Journals and textbooks: +${10 * l}% RP from lessons, Chem School and puzzles.`, next: () => '+10% RP from learning' },
+    { id: 'rotavap', name: 'Rotary evaporator', icon: '🌀', max: 1, cost: () => 1500,
       desc: (l) => (l ? 'Solvent is recovered and reused: solvent costs −60%.' : 'Recover and reuse solvent: −60% solvent costs.'), next: () => 'Solvent costs −60%' },
-    { id: 'maint', name: 'Reactor maintenance', icon: '🔧', max: 40, req: 'automation', cost: (l) => 600 * Math.pow(1.8, l),
+    { id: 'maint', name: 'Reactor maintenance', icon: '🔧', max: 40, req: 'automation', cost: (l) => 1500 * Math.pow(1.9, l),
       desc: (l) => `Automated reactors cycle ${12 * l}% faster.`, next: () => '+12% reactor speed' },
   ];
+  // Know-how: permanent techniques bought with RP (which only comes from learning).
+  G.KNOWHOW = [
+    { id: 'kin', name: 'Kinetics expertise', icon: '⏱️', max: 10, cost: (l) => 25 * Math.pow(1.8, l), desc: (l) => `Manual reactions run ${10 * l}% faster (higher rate constant).` },
+    { id: 'pur', name: 'Purification technique', icon: '🧫', max: 10, cost: (l) => 30 * Math.pow(1.8, l), desc: (l) => `+${2 * l}% isolated yield in the Lab.` },
+    { id: 'safety', name: 'Safety culture', icon: '🦺', max: 5, cost: (l) => 40 * Math.pow(2, l), desc: (l) => `Side reactions from overheating are ${15 * l}% slower.` },
+    { id: 'sop', name: 'SOP writing', icon: '📋', max: 5, cost: (l) => 60 * Math.pow(2, l), desc: (l) => `Need ${l * 15}% fewer manual runs before a reaction can be automated.` },
+    { id: 'proc', name: 'Process know-how', icon: '⚙️', max: 10, cost: (l) => 80 * Math.pow(1.9, l), desc: (l) => `+${2 * l}% automated yield quality.` },
+    { id: 'mkt', name: 'Market insight', icon: '🧾', max: 15, cost: (l) => 50 * Math.pow(1.8, l), desc: (l) => `+${4 * l}% on all sale prices.` },
+  ];
+  G.KNOW = {};
+  for (const k of G.KNOWHOW) G.KNOW[k.id] = k;
+  G.kh = (id) => (S.know && S.know[id]) || 0;
+  G.buyKnow = function (id) {
+    const k = G.KNOW[id];
+    const l = G.kh(id);
+    if (!k || l >= k.max) return false;
+    const c = k.cost(l);
+    if (S.rp < c) return false;
+    S.rp -= c;
+    S.know = S.know || {};
+    S.know[id] = l + 1;
+    G.dirty();
+    return true;
+  };
+
   G.UPGRADE = {};
   for (const u of G.UPGRADES) G.UPGRADE[u.id] = u;
 
@@ -94,6 +119,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       contractSeq: 0,
       goals: {},
       revealed: {},
+      know: {},
       lab: { slots: [], solvent: 'none', additive: 'none', atm: 'air', app: 'reflux', set: 22, T: 22, run: null, last: null, report: null },
       stats: { lifetimeEarned: 0, runEarned: 0, manualRuns: 0, autoBatches: 0, bought: 0, sold: 0, quizCorrect: 0, playTime: 0, prestiges: 0, contracts: 0, failed: 0 },
       time: Date.now(),
@@ -126,11 +152,11 @@ var CC = (globalThis.CC = globalThis.CC || {});
   G.scale = () => G.SCALES[G.lvl('scale')].n;
   G.manualSpeed = () => 1 + 0.15 * G.lvl('techs');
   G.autoSpeed = () => (1 + 0.12 * G.lvl('maint')) * (G.flag('flow') ? 1.5 : 1) * (G.flag('ai') ? 1.5 : 1);
-  G.autoQuality = () => 0.75 + (G.flag('process') ? 0.1 : 0) + (G.flag('ai') ? 0.1 : 0);
-  G.sellMult = () => 1 + 0.06 * G.lvl('sales');
-  G.rpMult = () => 1;
+  G.autoQuality = () => 0.75 + 0.02 * G.kh('proc') + (G.flag('process') ? 0.1 : 0) + (G.flag('ai') ? 0.1 : 0);
+  G.sellMult = () => (1 + 0.06 * G.lvl('sales')) * (1 + 0.04 * G.kh('mkt'));
+  G.rpMult = () => 1 + 0.1 * G.lvl('library');
   G.marketSize = () => MARKET_SIZE * G.scale() * (1 + 0.25 * G.lvl('marketing'));
-  G.rpPerSec = () => 0.2 * G.lvl('postdoc') * G.rpMult();
+  G.rpPerSec = () => 0;
 
   G.rec = (rid) => S.recipes[rid] || (S.recipes[rid] = { runs: 0, manual: 0, best: 0 });
   G.runs = (rid) => (S.recipes[rid] ? S.recipes[rid].runs : 0);
@@ -141,7 +167,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     return l;
   };
   G.known = (rid) => G.runs(rid) >= 1 || !!S.revealed[rid];
-  G.automateAt = (r) => G.AUTOMATE_AT[r.tier];
+  G.automateAt = (r) => Math.max(2, Math.round(G.AUTOMATE_AT[r.tier] * (1 - 0.15 * G.kh('sop'))));
   G.canAutomate = (r) => G.flag('automation') && G.researched(r) && G.runs(r.id) >= G.automateAt(r);
 
   G.baseYield = (r) => (r.eqm && !r.noDean && G.flag('deanstark') ? Math.max(r.yield, 0.92) : r.yield);
@@ -326,7 +352,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
     let v = 0;
     for (const p in r.products) v += (CC.ITEMS[p].value || 0) * r.products[p];
     if (!v) for (const x in r.reagents) v += (CC.ITEMS[x].cost || 40) * r.reagents[x] * 1.5;
-    return Math.round(Math.max(50, v * 15) * Math.pow(1.5, n));
+    return Math.round(Math.max(120, v * 30) * Math.pow(1.6, n));
   };
   G.buildReactor = function (rid) {
     const r = CC.RECIPE[rid];
@@ -431,7 +457,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const before = G.mastery(r.id);
     rec.runs += k;
     if (G.mastery(r.id) > before) G.toast(`${r.name} reached mastery ★${G.mastery(r.id)}`, 'good');
-    gainRp(r.rp * 0.15 * k * G.rpMult());
     S.stats.autoBatches += k;
     g.status = k < want - 1e-6 ? 'limited' : 'running';
     g.why = k < want - 1e-6 ? (limiter === 'funds' ? 'Limited by funds' : `Limited by ${limiter}`) : '';
@@ -501,14 +526,14 @@ var CC = (globalThis.CC = globalThis.CC || {});
     const pid = CC.pick([...pool]);
     const it = CC.ITEMS[pid];
     const qty = Math.max(1, Math.round(G.scale() * (2 + Math.random() * 6)));
-    const mult = 1.6 + Math.random() * 0.9;
+    const mult = 1.3 + Math.random() * 0.5;
     S.contracts.push({
       id: ++S.contractSeq,
       client: CC.pick(G.CLIENTS),
       item: pid,
       qty,
       reward: it.value * qty * mult * G.sellMult(),
-      rp: (it.tier || 1) * 3,
+      rp: 0,
       expires: Date.now() + (300 + Math.random() * 300) * 1000,
     });
     G.toast(`New contract: ${CC.fmt(qty)} mol ${it.name}`, 'info');
@@ -522,7 +547,6 @@ var CC = (globalThis.CC = globalThis.CC || {});
     S.inv[c.item] -= c.qty;
     if (S.inv[c.item] < 1e-9) delete S.inv[c.item];
     earn(c.reward);
-    gainRp(c.rp * G.rpMult());
     S.contracts.splice(i, 1);
     S.stats.contracts++;
     G.toast(`Contract fulfilled for ${c.client}: +${CC.money(c.reward)}`, 'good');

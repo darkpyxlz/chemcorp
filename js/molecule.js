@@ -13,6 +13,14 @@ var CC = (globalThis.CC = globalThis.CC || {});
   M.GROUPS = GROUPS;
   M.MAX_N = 8;
 
+  // "n;i:G,i:G;d,d" → molecule, e.g. "3;1:OH" = propan-2-ol, "4;;1" = but-2-ene
+  M.parse = function (spec) {
+    const [n, subs, dbs] = String(spec).split(';');
+    const m = M.make(+n);
+    for (const x of (subs || '').split(',').filter(Boolean)) { const [i, g] = x.split(':'); m.sub[+i].push(g); }
+    m.db = (dbs || '').split(',').filter(Boolean).map(Number);
+    return m;
+  };
   M.make = (n) => ({ n, sub: Array.from({ length: n }, () => []), db: [] });
   M.clone = (m) => ({ n: m.n, sub: m.sub.map((s) => s.slice()), db: m.db.slice() });
 

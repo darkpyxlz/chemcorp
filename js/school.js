@@ -131,7 +131,7 @@ var CC = (globalThis.CC = globalThis.CC || {});
       const [cid, qi] = id.split(':');
       const q = CC.COURSE[cid].quiz[+qi];
       const res = finish({ cat: 'acad', id, prompt: q.q, course: cid }, q.o[q.a], q.o.filter((_, i) => i !== q.a));
-      if (res) res.explain = q.e;
+      if (res) { res.explain = q.e; res.fig = q.fig; }
       return res;
     },
   };

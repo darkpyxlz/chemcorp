@@ -13,7 +13,7 @@ const ctx = {
 };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/data/mechanisms.js', 'js/data/routes.js', 'js/data/metro.js', 'js/game.js', 'js/lab.js', 'js/school.js', 'js/molecule.js', 'js/puzzles.js']) {
+for (const f of ['js/util.js', 'js/data/items.js', 'js/data/recipes.js', 'js/data/tech.js', 'js/data/academy.js', 'js/data/goals.js', 'js/data/school.js', 'js/data/mechanisms.js', 'js/data/routes.js', 'js/data/metro.js', 'js/data/figures.js', 'js/game.js', 'js/lab.js', 'js/school.js', 'js/molecule.js', 'js/puzzles.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 }
 const CC = ctx.CC;
@@ -81,24 +81,35 @@ test('courses: valid quizzes and prerequisites', () => {
     for (const q of c.quiz) assert(q.a >= 0 && q.a < q.o.length && q.e, `${c.id}: ${q.q}`);
   }
 });
-test('sellable final products are profitable when automated', () => {
-  for (const r of CC.RECIPES) {
-    let input = 0;
-    for (const id in r.reagents) {
-      const it = CC.ITEMS[id];
-      input += r.reagents[id] * (it.kind === 'reagent' ? it.cost * 1.1 : 0);
-    }
-    if (r.additive) input += CC.ITEMS[r.additive.id].use * r.additive.amt;
-    input += r.solvents[0] === 'none' ? 0 : CC.ITEMS[r.solvents[0]].use;
-    let out = 0;
-    for (const p in r.products) out += (CC.ITEMS[p].kind === 'product' ? CC.ITEMS[p].value : 0) * r.products[p];
-    if (!out) continue; // intermediates
-    const hasIntermediate = Object.keys(r.reagents).some((id) => CC.ITEMS[id].kind === 'product');
-    if (hasIntermediate) continue;
-    assert(out * r.yield * 0.75 > input, `${r.id}: out ${out * r.yield * 0.75} vs in ${input}`);
+test('every sellable product has at least one route that is profitable when automated', () => {
+  const memo = {};
+  const cost = (id, depth) => {
+    const it = CC.ITEMS[id];
+    if (it.kind === 'reagent') return it.cost * 1.1;
+    if (id in memo) return memo[id];
+    if (depth > 8) return Infinity;
+    memo[id] = Infinity;
+    let best = Infinity;
+    for (const r of CC.RECIPES) if (r.products[id]) best = Math.min(best, recipeCost(r, depth + 1) / (r.products[id] * r.yield * 0.75));
+    return (memo[id] = best);
+  };
+  const recipeCost = (r, depth) => {
+    let c = 0;
+    for (const x in r.reagents) c += r.reagents[x] * cost(x, depth);
+    if (r.additive) c += CC.ITEMS[r.additive.id].use * r.additive.amt;
+    return c + (r.solvents[0] === 'none' ? 0 : CC.ITEMS[r.solvents[0]].use);
+  };
+  for (const it of CC.ITEM_LIST) {
+    if (it.kind !== 'product' || it.sellable === false) continue;
+    const routes = CC.RECIPES.filter((r) => r.products[it.id]);
+    const ok = routes.some((r) => {
+      let out = 0;
+      for (const p in r.products) out += (CC.ITEMS[p].kind === 'product' ? CC.ITEMS[p].value : CC.ITEMS[p].cost * 0.5) * r.products[p];
+      return out * r.yield * 0.75 > recipeCost(r, 0);
+    });
+    assert(ok, it.id + ' has no profitable route');
   }
 });
-
 console.log('Engine');
 G.newGame();
 const S = () => G.state();
@@ -122,7 +133,7 @@ test('fresh game can make the first ester', () => {
   assert.strictEqual(rep.type, 'result');
   assert(rep.y > 0.5 && rep.y < 0.68, 'equilibrium-limited yield ' + rep.y);
   assert(S().inv.etoac > 0.5, 'ester made');
-  assert(S().rp > 10, 'rp ' + S().rp);
+  assert.strictEqual(S().rp, 0, 'lab runs no longer give RP');
   assert(G.runs('etoac') === 1);
 });
 test('excess alcohol raises the equilibrium yield', () => {
@@ -233,6 +244,31 @@ test('every recipe can be completed with its documented procedure', () => {
     CC.Lab.workup();
     const rep = st.lab.report;
     assert(rep.type === 'result' && rep.success, `${r.id}: yield ${rep.y} ${JSON.stringify(rep.factors.filter((f) => f.f < 1))}`);
+  }
+});
+
+test('know-how costs RP and applies its bonus', () => {
+  const st = S();
+  st.rp = 1000;
+  const price0 = G.price('etoac');
+  assert(G.buyKnow('mkt'));
+  assert(st.rp < 1000 && G.price('etoac') > price0);
+  st.rp = 0;
+  assert(!G.buyKnow('mkt'));
+});
+
+test('lesson and quiz diagram tokens all resolve', () => {
+  const chk = (txt, where) => {
+    for (const [, kind, arg] of String(txt).matchAll(/\[\[(fig|mol|mech):([^\]]+)\]\]/g)) {
+      if (kind === 'fig') assert(CC.FIGS[arg], `${where}: fig ${arg}`);
+      else if (kind === 'mol') { const m = CC.Mol.parse(arg); assert(CC.Mol.valid(m) && CC.Mol.name(m), `${where}: mol ${arg}`); }
+      else { const [id, k] = arg.split(':'); assert(CC.MECH[id] && CC.MECH[id].steps[+k || 0], `${where}: mech ${arg}`); }
+    }
+  };
+  for (const c of CC.COURSES) {
+    c.lessons.forEach((l) => chk(l.b, c.id + '/' + l.t));
+    c.quiz.forEach((q) => { chk(q.fig || '', c.id + '/' + q.q); assert(q.o.length === 4 && new Set(q.o).size === 4, c.id + ': ' + q.q); });
+    assert(c.quiz.length >= 8, c.id + ' needs 8+ questions');
   }
 });
 
